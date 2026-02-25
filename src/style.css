@@ -16,16 +16,14 @@
   --color-accent: #2563eb;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #1c1917;
-    --color-surface: #292524;
-    --color-border: #44403c;
-    --color-text: #e7e5e4;
-    --color-heading: #fafaf9;
-    --color-muted: #a8a29e;
-    --color-accent: #3b82f6;
-  }
+[data-theme="dark"] {
+  --color-bg: #1c1917;
+  --color-surface: #292524;
+  --color-border: #44403c;
+  --color-text: #e7e5e4;
+  --color-heading: #fafaf9;
+  --color-muted: #a8a29e;
+  --color-accent: #3b82f6;
 }
 
 *, *::before, *::after {

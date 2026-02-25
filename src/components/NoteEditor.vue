@@ -1,6 +1,9 @@
 <template>
   <div class="note-container">
-    <h1>Note</h1>
+    <header class="toolbar">
+      <h1>Encrypted Note App</h1>
+      <ThemeToggle />
+    </header>
 
     <template v-if="!unlocked">
       <UnlockForm
@@ -42,6 +45,7 @@ import UnlockForm from './UnlockForm.vue'
 import NoteArea from './NoteArea.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import AppInfo from './AppInfo.vue'
+import ThemeToggle from './ThemeToggle.vue'
 
 const STORAGE_KEY = 'app-note'
 
@@ -101,10 +105,17 @@ function handleDrop() {
   max-width: 640px;
 }
 
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 24px 0;
+}
+
 h1 {
   font-size: 1.5rem;
   font-weight: 600;
-  margin: 0 0 24px 0;
+  margin: 0;
   color: var(--color-heading);
 }
 </style>
