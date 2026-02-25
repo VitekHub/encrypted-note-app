@@ -17,12 +17,12 @@
 }
 
 [data-theme="dark"] {
-  --color-bg: #1c1917;
-  --color-surface: #292524;
-  --color-border: #44403c;
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-border: #334155;
   --color-text: #e7e5e4;
   --color-heading: #fafaf9;
-  --color-muted: #a8a29e;
+  --color-muted: #94a3b8;
   --color-accent: #3b82f6;
 }
 
