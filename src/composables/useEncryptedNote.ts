@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { encryptField, decryptField } from '../utils/crypto/simpleEncryption'
+import { encryptField, decryptField, isEncrypted } from '../utils/crypto/simpleEncryption'
 
 export function useEncryptedNote(storageKey: string) {
   const loading = ref(false)
@@ -29,6 +29,10 @@ export function useEncryptedNote(storageKey: string) {
     try {
       const stored = localStorage.getItem(storageKey)
       if (!stored) return null
+      if (!isEncrypted(stored)) {
+        error.value = 'Stored data is not in a valid encrypted format.'
+        return null
+      }
       return await decryptField(stored, password, aad)
     } catch (e) {
       error.value = 'Wrong password or corrupted data.'
@@ -39,7 +43,8 @@ export function useEncryptedNote(storageKey: string) {
   }
 
   function hasNote(): boolean {
-    return localStorage.getItem(storageKey) !== null
+    const stored = localStorage.getItem(storageKey)
+    return stored !== null && isEncrypted(stored)
   }
 
   return { saveNote, loadNote, hasNote, loading, error }

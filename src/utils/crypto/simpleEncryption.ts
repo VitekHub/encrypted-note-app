@@ -14,42 +14,36 @@ import { fromUint8Array, toUint8Array } from 'js-base64'
 const ITERATIONS = 600_000
 const SALT_LEN   = 16                    // 128‑bit salt
 const IV_LEN     = 12                    // 96‑bit IV (recommended for GCM)
+const MIN_BLOB_LEN = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
 
 /**
- * Converts an ArrayBuffer to a base64-encoded string using js-base64.
- * @param {ArrayBuffer} buffer - The ArrayBuffer to convert
- * @returns {string} The base64-encoded string
+ * Concatenate multiple Uint8Arrays and return the result as a base64-encoded string.
+ * This encodes the combined bytes into a base64 string suitable for storage or transmission.
+ * @param {...Uint8Array} arrays - One or more Uint8Arrays to concatenate
+ * @returns {string} A base64-encoded string of the concatenated bytes
  */
-function bufferToBase64(buffer: ArrayBuffer): string {
-  return fromUint8Array(new Uint8Array(buffer))
-}
-
-/**
- * Converts a base64-encoded string back to an ArrayBuffer using js-base64.
- * @param {string} b64 - The base64 string to convert
- * @returns {ArrayBuffer} The ArrayBuffer
- */
-function base64ToBuffer(b64: string): ArrayBuffer {
-  return toUint8Array(b64).buffer as ArrayBuffer
-}
-
-/**
- * Concatenate multiple ArrayBuffers into a single ArrayBuffer.
- * This creates a new ArrayBuffer containing the bytes of each input buffer in sequence.
- * @param {ArrayBuffer[]} buffers - An array of ArrayBuffers to concatenate
- * @returns {ArrayBuffer} A new ArrayBuffer containing the concatenated bytes
- */
-function concatBuffers(...buffers: ArrayBuffer[]): ArrayBuffer {
-  const totalLength = buffers.reduce((sum, b) => sum + b.byteLength, 0);
+function concatToBase64(...arrays: Uint8Array[]): string {
+  const totalLength = arrays.reduce((sum, a) => sum + a.byteLength, 0);
   const result = new Uint8Array(totalLength);
   let offset = 0;
-  for (const buf of buffers) {
-    result.set(new Uint8Array(buf), offset);
-    offset += buf.byteLength;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.byteLength;
   }
-  return result.buffer as ArrayBuffer;
+  return fromUint8Array(result);
 }
 
+/**
+ * Decodes a base64 string and validates it meets the minimum blob length.
+ * Throws if the string is not valid base64 or is too short to be a valid encrypted blob.
+ * @param {string} value - The base64 string to decode
+ * @returns {Uint8Array} The decoded bytes
+ */
+function parseBlob(value: string): Uint8Array {
+  const bytes = toUint8Array(value)
+  if (bytes.length < MIN_BLOB_LEN) throw new Error('Invalid encrypted format')
+  return bytes
+}
 
 /**
  * Encode a text string to an ArrayBuffer (UTF-8).
@@ -114,13 +108,11 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
  */
 export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
   // Generate a random 16-byte salt for PBKDF2. Salt prevents rainbow table attacks.
-  const saltArr = crypto.getRandomValues(new Uint8Array(SALT_LEN))
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
   // Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently.
-  const ivArr = crypto.getRandomValues(new Uint8Array(IV_LEN))
-  const salt = saltArr.buffer as ArrayBuffer
-  const iv = ivArr.buffer as ArrayBuffer
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LEN))
   // Derive the encryption key from password and salt.
-  const key = await deriveKey(password, salt)
+  const key = await deriveKey(password, salt.buffer as ArrayBuffer)
   // Encrypt the plaintext using AES-GCM with the derived key and IV.
   const ciphertext = await crypto.subtle.encrypt(
     {
@@ -131,11 +123,8 @@ export async function encryptField(plaintext: string, password: string, aad: str
     key,
     textToBuffer(plaintext)
   );
-  
-  // Create the encrypted blob: salt + IV + ciphertext
-  const blob = concatBuffers(salt, iv, ciphertext);
-  // Return the encrypted data as base64-encoded blob for easy storage
-  return bufferToBase64(blob);
+
+  return concatToBase64(salt, iv, new Uint8Array(ciphertext));
 }
 
 /**
@@ -149,15 +138,12 @@ export async function encryptField(plaintext: string, password: string, aad: str
  * @returns {Promise<string>} Promise resolving to the decrypted plaintext
  */
 export async function decryptField(encryptedBlob: string, password: string, aad: string): Promise<string> {
-  // Split the encoded string into its components.
-  // Decode the base64 blob to raw bytes
-  const raw = new Uint8Array(base64ToBuffer(encryptedBlob));
-  const minLen = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
-  if (raw.length < minLen) throw new Error('Invalid encrypted format')
+  // Decode and validate the base64 blob
+  const raw = parseBlob(encryptedBlob)
   // Slice the raw back to salt, iv and cipherText
-  const salt = raw.slice(0, SALT_LEN).buffer
-  const iv   = raw.slice(SALT_LEN, SALT_LEN + IV_LEN).buffer
-  const ciphertext = raw.slice(SALT_LEN + IV_LEN).buffer
+  const salt       = raw.slice(0, SALT_LEN).buffer as ArrayBuffer
+  const iv         = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
+  const ciphertext = raw.slice(SALT_LEN + IV_LEN)
   // Derive the decryption key using the same password and extracted salt.
   const key = await deriveKey(password, salt)
   // Decrypt the ciphertext using AES-GCM with the derived key and IV.
@@ -174,14 +160,12 @@ export async function decryptField(encryptedBlob: string, password: string, aad:
   return bufferToText(plainBuffer)
 }
 
-/**
- * Checks if a given string appears to be in the encrypted format.
- * This is a heuristic check: splits by ':' and verifies exactly 3 non-empty parts.
- * Useful for determining if a field needs decryption before use.
- * @param {string} value - The string to check
- * @returns {boolean} True if the string is in encrypted format
- */
 export function isEncrypted(value: string): boolean {
-  const parts = value.split(':')
-  return parts.length === 3 && parts.every((p) => p.length > 0)
+  if (!value) return false
+  try {
+    parseBlob(value)
+    return true
+  } catch {
+    return false
+  }
 }
