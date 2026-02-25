@@ -1,7 +1,10 @@
 <template>
   <div class="note-container">
     <header class="toolbar">
-      <h1>Encrypted Note App</h1>
+      <h1>
+        <img src="/favicon.svg" alt="lock icon" class="title-icon" />
+        Encrypted Note App
+      </h1>
       <ThemeToggle />
     </header>
 
@@ -113,9 +116,18 @@ function handleDrop() {
 }
 
 h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 1.5rem;
   font-weight: 600;
   margin: 0;
   color: var(--color-heading);
+}
+
+.title-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 </style>
