@@ -50,6 +50,23 @@ function base64ToBuffer(b64: string): ArrayBuffer {
   return bytes.buffer
 }
 
+/**
+ * Concatenate multiple ArrayBuffers into a single ArrayBuffer.
+ * This creates a new ArrayBuffer containing the bytes of each input buffer in sequence.
+ * @param {ArrayBuffer[]} buffers - An array of ArrayBuffers to concatenate
+ * @returns {ArrayBuffer} A new ArrayBuffer containing the concatenated bytes
+ */
+function concatBuffers(...buffers: ArrayBuffer[]): ArrayBuffer {
+  const totalLength = buffers.reduce((sum, b) => sum + b.byteLength, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const buf of buffers) {
+    result.set(new Uint8Array(buf), offset);
+    offset += buf.byteLength;
+  }
+  return result.buffer as ArrayBuffer;
+}
+
 
 /**
  * Encode a text string to an ArrayBuffer (UTF-8).
@@ -105,11 +122,11 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
 /**
  * Encrypts a plaintext string using a password.
  * Generates random salt and initialization vector (IV) for each encryption to ensure uniqueness.
- * Returns a colon-separated string of base64-encoded salt, IV, and ciphertext.
+ * Returns a Base64‑encoded blob that concatenates salt, IV and ciphertext.
  * This format allows the encrypted data to be stored as a string and later decrypted.
  * @param {string} plaintext - The text to encrypt
  * @param {string} password - The password for encryption
- * @param {string} aad - with additional authenticated data
+ * @param {string} aad - Additional authenticated data
  * @returns {Promise<string>} Promise resolving to the encrypted string
  */
 export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
@@ -131,28 +148,33 @@ export async function encryptField(plaintext: string, password: string, aad: str
     key,
     textToBuffer(plaintext)
   );
-  // Return the encrypted data as base64-encoded components separated by colons.
-  return [bufferToBase64(salt), bufferToBase64(iv), bufferToBase64(ciphertext)].join(':')
+  
+  // Create the encrypted blob: salt + IV + ciphertext
+  const blob = concatBuffers(salt, iv, ciphertext);
+  // Return the encrypted data as base64-encoded blob for easy storage
+  return bufferToBase64(blob);
 }
 
 /**
  * Decrypts an encrypted string back to plaintext using the password.
- * Expects the input to be in the format produced by encryptField: salt:iv:ciphertext (base64 encoded).
+ * Expects the input to be a Base64‑encoded blob that concatenates
+ * salt, IV and ciphertext (produced by encryptField).
  * Throws an error if the format is invalid or decryption fails (e.g., wrong password).
- * @param {string} encoded - The encrypted string
+ * @param {string} encryptedBlob - The Base64‑encoded encrypted blob
  * @param {string} password - The password for decryption
- * @param {string} aad - with additional authenticated data
+ * @param {string} aad - Additional authenticated data (must match encryption)
  * @returns {Promise<string>} Promise resolving to the decrypted plaintext
  */
-export async function decryptField(encoded: string, password: string, aad: string): Promise<string> {
+export async function decryptField(encryptedBlob: string, password: string, aad: string): Promise<string> {
   // Split the encoded string into its components.
-  const parts = encoded.split(':')
-  if (parts.length !== 3) throw new Error('Invalid encrypted format')
-  const [saltB64, ivB64, ciphertextB64] = parts
-  // Decode the base64 components back to ArrayBuffers.
-  const salt = base64ToBuffer(saltB64)
-  const iv = base64ToBuffer(ivB64)
-  const ciphertext = base64ToBuffer(ciphertextB64)
+  // Decode the base64 blob to raw bytes
+  const raw = new Uint8Array(base64ToBuffer(encryptedBlob));
+  const minLen = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
+  if (raw.length < minLen) throw new Error('Invalid encrypted format')
+  // Slice the raw back to salt, iv and cipherText
+  const salt = raw.slice(0, SALT_LEN).buffer
+  const iv   = raw.slice(SALT_LEN, SALT_LEN + IV_LEN).buffer
+  const ciphertext = raw.slice(SALT_LEN + IV_LEN).buffer
   // Derive the decryption key using the same password and extracted salt.
   const key = await deriveKey(password, salt)
   // Decrypt the ciphertext using AES-GCM with the derived key and IV.
