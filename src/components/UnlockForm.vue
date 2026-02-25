@@ -10,9 +10,15 @@
         :value="modelValue"
         type="password"
         placeholder="Enter password..."
-        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @input="handlePasswordInput"
         @keydown.enter="noteExists ? $emit('unlock') : undefined"
       />
+      <p v-if="!noteExists" class="hint-msg">
+        Minimum 8 characters. Spaces and all character types accepted.
+      </p>
+      <ul v-if="policyErrors.length" class="error-list">
+        <li v-for="e in policyErrors" :key="e">{{ e }}</li>
+      </ul>
     </div>
     <div v-if="!noteExists" class="field">
       <label for="confirm-password">Confirm Password</label>
@@ -29,10 +35,10 @@
     <div class="form-actions">
       <button
         class="btn-primary"
-        :disabled="loading || !modelValue || (!noteExists && !confirmPassword)"
+        :disabled="isSubmitDisabled"
         @click="noteExists ? $emit('unlock') : handleCreate()"
       >
-        {{ loading ? 'Loading...' : noteExists ? 'Decrypt & Open' : 'Create Note' }}
+        {{ submitLabel }}
       </button>
       <button v-if="noteExists" class="btn-drop" @click="$emit('drop')">
         Drop Database
@@ -42,7 +48,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { validatePassword } from '../utils/passwordPolicy'
 
 const props = defineProps<{
   modelValue: string
@@ -59,18 +66,74 @@ const emit = defineEmits<{
 
 const confirmPassword = ref('')
 const confirmMismatch = ref(false)
+const policyErrors = ref<string[]>([])
+const policyChecking = ref(false)
+const policyDirty = ref(false)
 
-function handleCreate() {
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function handlePasswordInput(event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  emit('update:modelValue', value)
+  policyDirty.value = true
+  policyErrors.value = []
+
+  if (props.noteExists) return
+
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => runPolicyCheck(value), 600)
+}
+
+async function runPolicyCheck(password: string) {
+  if (!password) {
+    policyErrors.value = []
+    return
+  }
+  policyChecking.value = true
+  try {
+    const result = await validatePassword(password)
+    policyErrors.value = result.errors
+  } finally {
+    policyChecking.value = false
+  }
+}
+
+async function handleCreate() {
   if (props.modelValue !== confirmPassword.value) {
     confirmMismatch.value = true
     return
   }
   confirmMismatch.value = false
+
+  policyChecking.value = true
+  try {
+    const result = await validatePassword(props.modelValue)
+    policyErrors.value = result.errors
+    if (!result.valid) return
+  } finally {
+    policyChecking.value = false
+  }
+
   emit('unlock')
 }
 
 watch(confirmPassword, () => {
   confirmMismatch.value = false
+})
+
+const isSubmitDisabled = computed(() => {
+  if (props.loading || policyChecking.value || !props.modelValue) return true
+  if (!props.noteExists) {
+    if (!confirmPassword.value) return true
+    if (policyDirty.value && policyErrors.value.length > 0) return true
+  }
+  return false
+})
+
+const submitLabel = computed(() => {
+  if (policyChecking.value) return 'Checking...'
+  if (props.loading) return 'Loading...'
+  return props.noteExists ? 'Decrypt & Open' : 'Create Note'
 })
 </script>
 
@@ -110,14 +173,32 @@ input[type='password'] {
   border-radius: 8px;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 input[type='password']:focus {
   border-color: var(--color-accent);
 }
 
+.hint-msg {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
 .error-msg {
   margin: 0;
+  font-size: 0.85rem;
+  color: #dc2626;
+}
+
+.error-list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+}
+
+.error-list li {
   font-size: 0.85rem;
   color: #dc2626;
 }
