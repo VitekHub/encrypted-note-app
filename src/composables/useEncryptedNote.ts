@@ -47,5 +47,10 @@ export function useEncryptedNote(storageKey: string) {
     return stored !== null && isEncrypted(stored)
   }
 
-  return { saveNote, loadNote, hasNote, loading, error }
+  function dropDatabase(): void {
+    localStorage.removeItem(storageKey)
+    error.value = null
+  }
+
+  return { saveNote, loadNote, hasNote, dropDatabase, loading, error }
 }
