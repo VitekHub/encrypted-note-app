@@ -9,7 +9,10 @@
  * Number of iterations for PBKDF2 key derivation. Higher values increase security by making key derivation slower,
  * which protects against dictionary attacks, but also increases computation time for encryption/decryption.
  */
-const ITERATIONS = 100_000
+const ITERATIONS = 600_000
+const SALT_LEN   = 16                    // 128‑bit salt
+const IV_LEN     = 12                    // 96‑bit IV (recommended for GCM)
+const CHUNK_SIZE = 8_192                 // safe size for fromCharCode
 
 /**
  * Converts an ArrayBuffer to a base64-encoded string.
@@ -20,10 +23,9 @@ const ITERATIONS = 100_000
  */
 function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
-  const chunkSize = 8192 // Safe chunk size to avoid argument limits
   let binaryString = ''
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.slice(i, i + chunkSize)
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.slice(i, i + CHUNK_SIZE)
     binaryString += String.fromCharCode(...chunk)
   }
   return btoa(binaryString)
@@ -39,14 +41,22 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 function base64ToBuffer(b64: string): ArrayBuffer {
   const binary = atob(b64)
   const bytes = new Uint8Array(binary.length)
-  const chunkSize = 8192 // Safe chunk size
-  for (let i = 0; i < binary.length; i += chunkSize) {
-    const chunk = binary.slice(i, i + chunkSize)
+  for (let i = 0; i < binary.length; i += CHUNK_SIZE) {
+    const chunk = binary.slice(i, i + CHUNK_SIZE)
     for (let j = 0; j < chunk.length; j++) {
       bytes[i + j] = chunk.charCodeAt(j)
     }
   }
   return bytes.buffer
+}
+
+
+function textToBuffer(text: string): ArrayBuffer {
+  return new TextEncoder().encode(text).buffer as ArrayBuffer;
+}
+
+function bufferToText(buffer: ArrayBuffer): string {
+  return new TextDecoder().decode(buffer);
 }
 
 /**
@@ -61,11 +71,10 @@ function base64ToBuffer(b64: string): ArrayBuffer {
  * @returns {Promise<CryptoKey>} Promise resolving to the derived CryptoKey
  */
 async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey> {
-  const enc = new TextEncoder()
   /** Encode the password string into UTF-8 bytes. */
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    enc.encode(password),
+    textToBuffer(password),
     'PBKDF2',
     false, // Not extractable
     ['deriveKey'] // Allowed usages
@@ -87,24 +96,28 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
  * This format allows the encrypted data to be stored as a string and later decrypted.
  * @param {string} plaintext - The text to encrypt
  * @param {string} password - The password for encryption
+ * @param {string} aad - with additional authenticated data
  * @returns {Promise<string>} Promise resolving to the encrypted string
  */
-export async function encryptField(plaintext: string, password: string): Promise<string> {
-  const enc = new TextEncoder()
+export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
   /** Generate a random 16-byte salt for PBKDF2. Salt prevents rainbow table attacks. */
-  const saltArr = crypto.getRandomValues(new Uint8Array(16))
+  const saltArr = crypto.getRandomValues(new Uint8Array(SALT_LEN))
   /** Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently. */
-  const ivArr = crypto.getRandomValues(new Uint8Array(12))
+  const ivArr = crypto.getRandomValues(new Uint8Array(IV_LEN))
   const salt = saltArr.buffer as ArrayBuffer
   const iv = ivArr.buffer as ArrayBuffer
   /** Derive the encryption key from password and salt. */
   const key = await deriveKey(password, salt)
   /** Encrypt the plaintext using AES-GCM with the derived key and IV. */
   const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    {
+      name: 'AES-GCM',
+      iv,
+      additionalData: textToBuffer(aad), // AAD ensures integrity of associated data
+    },
     key,
-    enc.encode(plaintext) // Encode plaintext to bytes
-  )
+    textToBuffer(plaintext)
+  );
   /** Return the encrypted data as base64-encoded components separated by colons. */
   return [bufferToBase64(salt), bufferToBase64(iv), bufferToBase64(ciphertext)].join(':')
 }
@@ -115,9 +128,10 @@ export async function encryptField(plaintext: string, password: string): Promise
  * Throws an error if the format is invalid or decryption fails (e.g., wrong password).
  * @param {string} encoded - The encrypted string
  * @param {string} password - The password for decryption
+ * @param {string} aad - with additional authenticated data
  * @returns {Promise<string>} Promise resolving to the decrypted plaintext
  */
-export async function decryptField(encoded: string, password: string): Promise<string> {
+export async function decryptField(encoded: string, password: string, aad: string): Promise<string> {
   /** Split the encoded string into its components. */
   const parts = encoded.split(':')
   if (parts.length !== 3) throw new Error('Invalid encrypted format')
@@ -129,9 +143,17 @@ export async function decryptField(encoded: string, password: string): Promise<s
   /** Derive the decryption key using the same password and extracted salt. */
   const key = await deriveKey(password, salt)
   /** Decrypt the ciphertext using AES-GCM with the derived key and IV. */
-  const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+  const plainBuffer = await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv,
+      additionalData: textToBuffer(aad), // Must match encryption AAD
+    },
+    key,
+    ciphertext
+  )
   /** Decode the decrypted bytes back to a string. */
-  return new TextDecoder().decode(plainBuffer)
+  return bufferToText(plainBuffer)
 }
 
 /**
