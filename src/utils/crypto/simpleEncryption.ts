@@ -5,6 +5,8 @@
  * PBKDF2 is used to derive a strong cryptographic key from a password, making brute-force attacks harder.
  */
 
+import { fromUint8Array, toUint8Array } from 'js-base64'
+
 /**
  * Number of iterations for PBKDF2 key derivation. Higher values increase security by making key derivation slower,
  * which protects against dictionary attacks, but also increases computation time for encryption/decryption.
@@ -12,42 +14,23 @@
 const ITERATIONS = 600_000
 const SALT_LEN   = 16                    // 128‑bit salt
 const IV_LEN     = 12                    // 96‑bit IV (recommended for GCM)
-const CHUNK_SIZE = 8_192                 // safe size for fromCharCode
 
 /**
- * Converts an ArrayBuffer to a base64-encoded string.
- * This is useful for serializing binary data (like encrypted bytes) into a text format that can be stored or transmitted.
- * Uses btoa() which is a browser API for base64 encoding, with chunking to handle large buffers safely.
+ * Converts an ArrayBuffer to a base64-encoded string using js-base64.
  * @param {ArrayBuffer} buffer - The ArrayBuffer to convert
  * @returns {string} The base64-encoded string
  */
 function bufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binaryString = ''
-  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    const chunk = bytes.slice(i, i + CHUNK_SIZE)
-    binaryString += String.fromCharCode(...chunk)
-  }
-  return btoa(binaryString)
+  return fromUint8Array(new Uint8Array(buffer))
 }
 
 /**
- * Converts a base64-encoded string back to an ArrayBuffer.
- * This reverses the process of bufferToBase64, allowing binary data to be reconstructed from text.
- * Uses atob() to decode base64, then builds a Uint8Array from the binary string, with chunking for large strings.
+ * Converts a base64-encoded string back to an ArrayBuffer using js-base64.
  * @param {string} b64 - The base64 string to convert
  * @returns {ArrayBuffer} The ArrayBuffer
  */
 function base64ToBuffer(b64: string): ArrayBuffer {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += CHUNK_SIZE) {
-    const chunk = binary.slice(i, i + CHUNK_SIZE)
-    for (let j = 0; j < chunk.length; j++) {
-      bytes[i + j] = chunk.charCodeAt(j)
-    }
-  }
-  return bytes.buffer
+  return toUint8Array(b64).buffer as ArrayBuffer
 }
 
 /**
