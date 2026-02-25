@@ -14,27 +14,39 @@ const ITERATIONS = 100_000
 /**
  * Converts an ArrayBuffer to a base64-encoded string.
  * This is useful for serializing binary data (like encrypted bytes) into a text format that can be stored or transmitted.
- * Uses btoa() which is a browser API for base64 encoding.
+ * Uses btoa() which is a browser API for base64 encoding, with chunking to handle large buffers safely.
  * @param {ArrayBuffer} buffer - The ArrayBuffer to convert
  * @returns {string} The base64-encoded string
  */
 function bufferToBase64(buffer: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 8192 // Safe chunk size to avoid argument limits
+  let binaryString = ''
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize)
+    binaryString += String.fromCharCode(...chunk)
+  }
+  return btoa(binaryString)
 }
 
 /**
  * Converts a base64-encoded string back to an ArrayBuffer.
  * This reverses the process of bufferToBase64, allowing binary data to be reconstructed from text.
- * Uses atob() to decode base64, then builds a Uint8Array from the binary string.
+ * Uses atob() to decode base64, then builds a Uint8Array from the binary string, with chunking for large strings.
  * @param {string} b64 - The base64 string to convert
  * @returns {ArrayBuffer} The ArrayBuffer
  */
 function base64ToBuffer(b64: string): ArrayBuffer {
   const binary = atob(b64)
-  const buf = new ArrayBuffer(binary.length)
-  const view = new Uint8Array(buf)
-  for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i)
-  return buf
+  const bytes = new Uint8Array(binary.length)
+  const chunkSize = 8192 // Safe chunk size
+  for (let i = 0; i < binary.length; i += chunkSize) {
+    const chunk = binary.slice(i, i + chunkSize)
+    for (let j = 0; j < chunk.length; j++) {
+      bytes[i + j] = chunk.charCodeAt(j)
+    }
+  }
+  return bytes.buffer
 }
 
 /**
