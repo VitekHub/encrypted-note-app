@@ -2,15 +2,17 @@
   <div class="note-container">
     <h1>Note</h1>
 
-    <UnlockForm
-      v-if="!unlocked"
-      v-model="passwordInput"
-      :note-exists="hasNote()"
-      :loading="loading"
-      :error="error"
-      @unlock="handleUnlock"
-      @drop="showDropConfirm = true"
-    />
+    <template v-if="!unlocked">
+      <UnlockForm
+        v-model="passwordInput"
+        :note-exists="hasNote()"
+        :loading="loading"
+        :error="error"
+        @unlock="handleUnlock"
+        @drop="showDropConfirm = true"
+      />
+      <AppInfo />
+    </template>
 
     <NoteArea
       v-else
@@ -39,6 +41,7 @@ import { useEncryptedNote } from '../composables/useEncryptedNote'
 import UnlockForm from './UnlockForm.vue'
 import NoteArea from './NoteArea.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import AppInfo from './AppInfo.vue'
 
 const STORAGE_KEY = 'app-note'
 

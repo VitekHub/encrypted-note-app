@@ -11,12 +11,27 @@
         type="password"
         placeholder="Enter password..."
         @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
-        @keydown.enter="$emit('unlock')"
+        @keydown.enter="noteExists ? $emit('unlock') : undefined"
       />
+    </div>
+    <div v-if="!noteExists" class="field">
+      <label for="confirm-password">Confirm Password</label>
+      <input
+        id="confirm-password"
+        v-model="confirmPassword"
+        type="password"
+        placeholder="Confirm password..."
+        @keydown.enter="handleCreate"
+      />
+      <p v-if="confirmMismatch" class="error-msg">Passwords do not match.</p>
     </div>
     <p v-if="error" class="error-msg">{{ error }}</p>
     <div class="form-actions">
-      <button class="btn-primary" :disabled="loading || !modelValue" @click="$emit('unlock')">
+      <button
+        class="btn-primary"
+        :disabled="loading || !modelValue || (!noteExists && !confirmPassword)"
+        @click="noteExists ? $emit('unlock') : handleCreate()"
+      >
         {{ loading ? 'Loading...' : noteExists ? 'Decrypt & Open' : 'Create Note' }}
       </button>
       <button v-if="noteExists" class="btn-drop" @click="$emit('drop')">
@@ -27,18 +42,36 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { ref, watch } from 'vue'
+
+const props = defineProps<{
   modelValue: string
   noteExists: boolean
   loading: boolean
   error: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'update:modelValue': [value: string]
   unlock: []
   drop: []
 }>()
+
+const confirmPassword = ref('')
+const confirmMismatch = ref(false)
+
+function handleCreate() {
+  if (props.modelValue !== confirmPassword.value) {
+    confirmMismatch.value = true
+    return
+  }
+  confirmMismatch.value = false
+  emit('unlock')
+}
+
+watch(confirmPassword, () => {
+  confirmMismatch.value = false
+})
 </script>
 
 <style scoped>
