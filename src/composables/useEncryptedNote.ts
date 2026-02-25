@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { encryptField, decryptField, isEncrypted } from '../utils/crypto/simpleEncryption'
+import { encryptField, decryptField, isEncrypted } from '../utils/crypto/encryption'
 
 export function useEncryptedNote(storageKey: string) {
   const loading = ref(false)
