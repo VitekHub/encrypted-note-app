@@ -51,10 +51,23 @@ function base64ToBuffer(b64: string): ArrayBuffer {
 }
 
 
+/**
+ * Encode a text string to an ArrayBuffer (UTF-8).
+ * This is a small helper that wraps `TextEncoder` to produce a binary buffer
+ * suitable for use as input to Web Crypto APIs.
+ * @param {string} text - The text to encode
+ * @returns {ArrayBuffer} The encoded text as an ArrayBuffer
+ */
 function textToBuffer(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer as ArrayBuffer;
 }
 
+/**
+ * Decode an ArrayBuffer (UTF-8) back to a string.
+ * Wraps `TextDecoder` for convenience when converting decrypted bytes to text.
+ * @param {ArrayBuffer} buffer - The buffer to decode
+ * @returns {string} The decoded string
+ */
 function bufferToText(buffer: ArrayBuffer): string {
   return new TextDecoder().decode(buffer);
 }
@@ -71,7 +84,7 @@ function bufferToText(buffer: ArrayBuffer): string {
  * @returns {Promise<CryptoKey>} Promise resolving to the derived CryptoKey
  */
 async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey> {
-  /** Encode the password string into UTF-8 bytes. */
+  // Encode the password string into UTF-8 bytes.
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     textToBuffer(password),
@@ -79,7 +92,7 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
     false, // Not extractable
     ['deriveKey'] // Allowed usages
   )
-  /** Derive the key using PBKDF2 with SHA-256 hash, specified iterations, and the provided salt. */
+  // Derive the key using PBKDF2 with SHA-256 hash, specified iterations, and the provided salt.
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
     keyMaterial,
@@ -100,15 +113,15 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
  * @returns {Promise<string>} Promise resolving to the encrypted string
  */
 export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
-  /** Generate a random 16-byte salt for PBKDF2. Salt prevents rainbow table attacks. */
+  // Generate a random 16-byte salt for PBKDF2. Salt prevents rainbow table attacks.
   const saltArr = crypto.getRandomValues(new Uint8Array(SALT_LEN))
-  /** Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently. */
+  // Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently.
   const ivArr = crypto.getRandomValues(new Uint8Array(IV_LEN))
   const salt = saltArr.buffer as ArrayBuffer
   const iv = ivArr.buffer as ArrayBuffer
-  /** Derive the encryption key from password and salt. */
+  // Derive the encryption key from password and salt.
   const key = await deriveKey(password, salt)
-  /** Encrypt the plaintext using AES-GCM with the derived key and IV. */
+  // Encrypt the plaintext using AES-GCM with the derived key and IV.
   const ciphertext = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
@@ -118,7 +131,7 @@ export async function encryptField(plaintext: string, password: string, aad: str
     key,
     textToBuffer(plaintext)
   );
-  /** Return the encrypted data as base64-encoded components separated by colons. */
+  // Return the encrypted data as base64-encoded components separated by colons.
   return [bufferToBase64(salt), bufferToBase64(iv), bufferToBase64(ciphertext)].join(':')
 }
 
@@ -132,17 +145,17 @@ export async function encryptField(plaintext: string, password: string, aad: str
  * @returns {Promise<string>} Promise resolving to the decrypted plaintext
  */
 export async function decryptField(encoded: string, password: string, aad: string): Promise<string> {
-  /** Split the encoded string into its components. */
+  // Split the encoded string into its components.
   const parts = encoded.split(':')
   if (parts.length !== 3) throw new Error('Invalid encrypted format')
   const [saltB64, ivB64, ciphertextB64] = parts
-  /** Decode the base64 components back to ArrayBuffers. */
+  // Decode the base64 components back to ArrayBuffers.
   const salt = base64ToBuffer(saltB64)
   const iv = base64ToBuffer(ivB64)
   const ciphertext = base64ToBuffer(ciphertextB64)
-  /** Derive the decryption key using the same password and extracted salt. */
+  // Derive the decryption key using the same password and extracted salt.
   const key = await deriveKey(password, salt)
-  /** Decrypt the ciphertext using AES-GCM with the derived key and IV. */
+  // Decrypt the ciphertext using AES-GCM with the derived key and IV.
   const plainBuffer = await crypto.subtle.decrypt(
     {
       name: 'AES-GCM',
@@ -152,7 +165,7 @@ export async function decryptField(encoded: string, password: string, aad: strin
     key,
     ciphertext
   )
-  /** Decode the decrypted bytes back to a string. */
+  // Decode the decrypted bytes back to a string.
   return bufferToText(plainBuffer)
 }
 
