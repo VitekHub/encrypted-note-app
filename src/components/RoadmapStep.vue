@@ -3,6 +3,9 @@
     <button class="step-header" @click="isExpanded = !isExpanded">
       <span class="step-number">Step {{ stepNumber }}</span>
       <span class="step-title">{{ step.title }}</span>
+      <span v-if="stepNumber <= 1">
+        ✅
+      </span>
       <span class="chevron" :class="{ expanded: isExpanded }">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M6 5L10 9L6 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
