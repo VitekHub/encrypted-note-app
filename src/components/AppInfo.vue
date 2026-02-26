@@ -49,7 +49,18 @@ const features = [
 ]
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+$color-about: #2e86c1;
+$color-coming-soon: #1e8449;
+
+%section-title-base {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .app-info {
   margin-top: 32px;
   padding-top: 28px;
@@ -59,22 +70,18 @@ const features = [
   gap: 24px;
 }
 
-.about .section-title {
-  margin: 0 0 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #2e86c1;
+.about {
+  .section-title {
+    @extend %section-title-base;
+    color: $color-about;
+  }
 }
 
-.coming-soon .section-title {
-  margin: 0 0 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #1e8449;
+.coming-soon {
+  .section-title {
+    @extend %section-title-base;
+    color: $color-coming-soon;
+  }
 }
 
 .about-text {
@@ -110,7 +117,7 @@ const features = [
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background-color: #1e8449;
+  background-color: $color-coming-soon;
   opacity: 0.8;
 }
 

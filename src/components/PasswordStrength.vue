@@ -25,7 +25,14 @@ const props = defineProps<{
 const strength = computed(() => getPasswordStrength(props.password))
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+$levels: (
+  'weak': #ef4444,
+  'fair': #f97316,
+  'good': #84cc16,
+  'strong': #22c55e,
+);
+
 .strength-indicator {
   display: flex;
   align-items: center;
@@ -44,12 +51,13 @@ const strength = computed(() => getPasswordStrength(props.password))
   border-radius: 2px;
   background-color: var(--color-border);
   transition: background-color 0.25s ease;
-}
 
-.strength-segment.filled.level-weak { background-color: #ef4444; }
-.strength-segment.filled.level-fair { background-color: #f97316; }
-.strength-segment.filled.level-good { background-color: #84cc16; }
-.strength-segment.filled.level-strong { background-color: #22c55e; }
+  @each $level, $color in $levels {
+    &.filled.level-#{$level} {
+      background-color: $color;
+    }
+  }
+}
 
 .strength-label {
   font-size: 0.78rem;
@@ -57,10 +65,11 @@ const strength = computed(() => getPasswordStrength(props.password))
   min-width: 44px;
   text-align: right;
   transition: color 0.25s ease;
-}
 
-.strength-label.level-weak { color: #ef4444; }
-.strength-label.level-fair { color: #f97316; }
-.strength-label.level-good { color: #84cc16; }
-.strength-label.level-strong { color: #22c55e; }
+  @each $level, $color in $levels {
+    &.level-#{$level} {
+      color: $color;
+    }
+  }
+}
 </style>

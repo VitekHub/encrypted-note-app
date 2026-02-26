@@ -25,7 +25,7 @@ const options: { label: string; value: ThemeMode }[] = [
 ]
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -48,16 +48,16 @@ const options: { label: string; value: ThemeMode }[] = [
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   line-height: 1.5;
-}
 
-.theme-btn:hover:not(.active) {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-}
+  &:hover:not(.active) {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
 
-.theme-btn.active {
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-weight: 600;
+  &.active {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-weight: 600;
+  }
 }
 </style>

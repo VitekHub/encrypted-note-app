@@ -26,7 +26,9 @@ defineEmits<{
 }>()
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+$color-danger: #dc2626;
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -82,11 +84,11 @@ defineEmits<{
   border-radius: 8px;
   cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s;
-}
 
-.btn-secondary:hover {
-  border-color: var(--color-accent);
-  background-color: var(--color-surface);
+  &:hover {
+    border-color: var(--color-accent);
+    background-color: var(--color-surface);
+  }
 }
 
 .btn-danger {
@@ -95,14 +97,14 @@ defineEmits<{
   font-weight: 500;
   font-family: inherit;
   color: #fff;
-  background-color: #dc2626;
+  background-color: $color-danger;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: opacity 0.15s;
-}
 
-.btn-danger:hover {
-  opacity: 0.88;
+  &:hover {
+    opacity: 0.88;
+  }
 }
 </style>

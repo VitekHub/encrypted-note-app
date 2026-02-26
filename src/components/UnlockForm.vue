@@ -14,12 +14,13 @@
         @keydown.enter="noteExists ? $emit('unlock') : undefined"
       />
       <p v-if="!noteExists" class="hint-msg">
-        Minimum 8 characters. Spaces and all character types accepted.
+        <span v-if="policyErrors.length" class="error-list">{{ policyErrors.join(', ') }}</span>
+        <span v-else-if="!modelValue">Minimum 8 characters. Spaces and all character types accepted.</span>
+        <span v-else-if="policyChecking">Checking...</span>
+        <span v-else-if="passwordStrength.score < 3">Password is ok, but you should add capital letters and/or numbers.</span>
+        <span v-else>You've chosen a solid password.</span>
       </p>
       <PasswordStrength v-if="!noteExists && modelValue" :password="modelValue" />
-      <ul v-if="policyErrors.length" class="error-list">
-        <li v-for="e in policyErrors" :key="e">{{ e }}</li>
-      </ul>
     </div>
     <div v-if="!noteExists" class="field">
       <label for="confirm-password">Confirm Password</label>
@@ -51,6 +52,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { validatePassword } from '../utils/passwordPolicy'
+import { getPasswordStrength } from '../utils/passwordPolicy'
 import PasswordStrength from './PasswordStrength.vue'
 
 const props = defineProps<{
@@ -71,6 +73,7 @@ const confirmMismatch = ref(false)
 const policyErrors = ref<string[]>([])
 const policyChecking = ref(false)
 const policyDirty = ref(false)
+const passwordStrength = computed(() => getPasswordStrength(props.modelValue))
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -83,6 +86,7 @@ function handlePasswordInput(event: Event) {
   if (props.noteExists) return
 
   if (debounceTimer) clearTimeout(debounceTimer)
+  policyChecking.value = true
   debounceTimer = setTimeout(() => runPolicyCheck(value), 600)
 }
 
@@ -139,7 +143,9 @@ const submitLabel = computed(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+$color-danger: #dc2626;
+
 .unlock-form {
   display: flex;
   flex-direction: column;
@@ -176,10 +182,10 @@ input[type='password'] {
   outline: none;
   transition: border-color 0.2s;
   box-sizing: border-box;
-}
 
-input[type='password']:focus {
-  border-color: var(--color-accent);
+  &:focus {
+    border-color: var(--color-accent);
+  }
 }
 
 .hint-msg {
@@ -191,18 +197,11 @@ input[type='password']:focus {
 .error-msg {
   margin: 0;
   font-size: 0.85rem;
-  color: #dc2626;
+  color: $color-danger;
 }
 
 .error-list {
-  margin: 0;
-  padding: 0 0 0 1.1em;
-  list-style: disc;
-}
-
-.error-list li {
-  font-size: 0.85rem;
-  color: #dc2626;
+  color: $color-danger;
 }
 
 .form-actions {
@@ -223,15 +222,15 @@ input[type='password']:focus {
   border-radius: 8px;
   cursor: pointer;
   transition: opacity 0.15s;
-}
 
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.88;
-}
+  &:hover:not(:disabled) {
+    opacity: 0.88;
+  }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .btn-drop {
@@ -239,17 +238,17 @@ input[type='password']:focus {
   font-size: 0.9rem;
   font-weight: 500;
   font-family: inherit;
-  color: #dc2626;
+  color: $color-danger;
   background-color: transparent;
-  border: 1.5px solid #dc2626;
+  border: 1.5px solid $color-danger;
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
   margin-left: auto;
-}
 
-.btn-drop:hover {
-  background-color: #dc2626;
-  color: #fff;
+  &:hover {
+    background-color: $color-danger;
+    color: #fff;
+  }
 }
 </style>

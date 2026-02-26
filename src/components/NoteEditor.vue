@@ -100,7 +100,7 @@ function handleDrop() {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .note-container {
   display: flex;
   flex-direction: column;
@@ -113,16 +113,16 @@ function handleDrop() {
   align-items: center;
   justify-content: space-between;
   margin: 0 0 24px 0;
-}
 
-h1 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin: 0;
-  color: var(--color-heading);
+  h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-heading);
+  }
 }
 
 .title-icon {

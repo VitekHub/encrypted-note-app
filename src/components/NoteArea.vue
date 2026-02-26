@@ -35,7 +35,9 @@ defineEmits<{
 }>()
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
+$color-danger: #dc2626;
+
 .note-area {
   display: flex;
   flex-direction: column;
@@ -56,10 +58,10 @@ defineEmits<{
   resize: vertical;
   outline: none;
   transition: border-color 0.2s;
-}
 
-.note-input:focus {
-  border-color: var(--color-accent);
+  &:focus {
+    border-color: var(--color-accent);
+  }
 }
 
 .actions {
@@ -85,7 +87,7 @@ defineEmits<{
 .error-msg {
   margin: 4px 0 0;
   font-size: 0.85rem;
-  color: #dc2626;
+  color: $color-danger;
 }
 
 .btn-primary {
@@ -99,15 +101,15 @@ defineEmits<{
   border-radius: 8px;
   cursor: pointer;
   transition: opacity 0.15s;
-}
 
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.88;
-}
+  &:hover:not(:disabled) {
+    opacity: 0.88;
+  }
 
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .btn-secondary {
@@ -121,10 +123,10 @@ defineEmits<{
   border-radius: 8px;
   cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s;
-}
 
-.btn-secondary:hover {
-  border-color: var(--color-accent);
-  background-color: var(--color-surface);
+  &:hover {
+    border-color: var(--color-accent);
+    background-color: var(--color-surface);
+  }
 }
 </style>
