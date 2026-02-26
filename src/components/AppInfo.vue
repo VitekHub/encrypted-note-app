@@ -3,8 +3,8 @@
     <div class="about">
       <h2 class="section-title">About</h2>
       <p class="about-text">
-        A private, zero-knowledge notepad. Your note is encrypted in the browser using AES-256-GCM. 
-        Passwords are checked against the HaveIBeenPwned database. 
+        A private, zero-knowledge notepad. Your note is encrypted in the browser using AES-256-GCM.
+        Passwords are checked against the HaveIBeenPwned database.
         This is an alfa version with "Drop Database" button that removes everything from the local storage.
       </p>
     </div>
@@ -21,10 +21,16 @@
         </li>
       </ul>
     </div>
+
+    <div class="encryption-roadmap-section">
+      <EncryptionRoadmap />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import EncryptionRoadmap from './EncryptionRoadmap.vue'
+
 const features = [
   {
     title: 'Supabase-powered backend',
@@ -81,6 +87,12 @@ $color-coming-soon: #1e8449;
   .section-title {
     @extend %section-title-base;
     color: $color-coming-soon;
+  }
+}
+
+.encryption-roadmap-section {
+  :deep(.section-title) {
+    @extend %section-title-base;
   }
 }
 
