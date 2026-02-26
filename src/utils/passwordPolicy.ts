@@ -5,6 +5,35 @@ export interface PasswordValidationResult {
   errors: string[]
 }
 
+export type PasswordStrengthLevel = 'weak' | 'fair' | 'good' | 'strong'
+
+export interface PasswordStrength {
+  level: PasswordStrengthLevel
+  score: number
+  label: string
+}
+
+export function getPasswordStrength(password: string): PasswordStrength {
+  if (!password) return { level: 'weak', score: 0, label: 'Weak' }
+
+  let score = 0
+
+  if (password.length >= 8) score++
+  if (password.length >= 12) score++
+  if (password.length >= 16) score++
+  if (/[A-Z]/.test(password)) score++
+  if (/[a-z]/.test(password)) score++
+  if (/[0-9]/.test(password)) score++
+  if (/[^A-Za-z0-9]/.test(password)) score++
+
+  const normalized = Math.min(score, 7)
+
+  if (normalized <= 2) return { level: 'weak', score: 1, label: 'Weak' }
+  if (normalized <= 4) return { level: 'fair', score: 2, label: 'Fair' }
+  if (normalized <= 5) return { level: 'good', score: 3, label: 'Good' }
+  return { level: 'strong', score: 4, label: 'Strong' }
+}
+
 /**
  * Validates a password against the policy rules.
  * Checks minimum length and whether the password has appeared in known data breaches

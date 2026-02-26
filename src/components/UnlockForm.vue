@@ -16,6 +16,7 @@
       <p v-if="!noteExists" class="hint-msg">
         Minimum 8 characters. Spaces and all character types accepted.
       </p>
+      <PasswordStrength v-if="!noteExists && modelValue" :password="modelValue" />
       <ul v-if="policyErrors.length" class="error-list">
         <li v-for="e in policyErrors" :key="e">{{ e }}</li>
       </ul>
@@ -50,6 +51,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { validatePassword } from '../utils/passwordPolicy'
+import PasswordStrength from './PasswordStrength.vue'
 
 const props = defineProps<{
   modelValue: string
