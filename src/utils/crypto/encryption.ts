@@ -1,19 +1,28 @@
 /**
  * This module provides simple encryption and decryption utilities using AES-GCM (Galois/Counter Mode)
- * with PBKDF2 (Password-Based Key Derivation Function 2) for key derivation from a password.
+ * with Argon2id for key derivation from a password.
  * AES-GCM is a symmetric encryption algorithm that provides both confidentiality and authenticity.
- * PBKDF2 is used to derive a strong cryptographic key from a password, making brute-force attacks harder.
+ * Argon2id is a memory-hard key derivation function that protects against GPU/ASIC-based brute-force attacks,
+ * making it more secure than PBKDF2 for deriving keys from passwords.
  */
 
 import { fromUint8Array, toUint8Array } from 'js-base64'
+import { argon2id } from 'hash-wasm'
 
 /**
- * Number of iterations for PBKDF2 key derivation. Higher values increase security by making key derivation slower,
+ * Parameters for Argon2id key derivation. These values balance security and performance:
+ * - iterations: Number of passes (higher increases computation time).
+ * - memorySize: Memory usage in KiB (higher makes GPU/ASIC attacks harder).
+ * - parallelism: Number of threads (typically 4 for modern browsers/Node).
+ * Higher values increase security by making key derivation slower and more resource-intensive,
  * which protects against dictionary attacks, but also increases computation time for encryption/decryption.
  */
-const ITERATIONS = 600_000
-const SALT_LEN   = 16                    // 128‑bit salt
-const IV_LEN     = 12                    // 96‑bit IV (recommended for GCM)
+const ARGON2_ITERATIONS = 3
+const ARGON2_MEMORY = 64 * 1024 // 64 MiB (in KiB)
+const ARGON2_PARALLELISM = 4 // threads
+const ARGON2_HASH_LEN    = 32 // 256‑bit output (32 bytes)
+const SALT_LEN   = 16 // 128-bit salt
+const IV_LEN     = 12 // 96-bit IV (recommended for GCM)
 const MIN_BLOB_LEN = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
 
 /**
@@ -23,14 +32,14 @@ const MIN_BLOB_LEN = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
  * @returns {string} A base64-encoded string of the concatenated bytes
  */
 function concatToBase64(...arrays: Uint8Array[]): string {
-  const totalLength = arrays.reduce((sum, a) => sum + a.byteLength, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
+  const totalLength = arrays.reduce((sum, a) => sum + a.byteLength, 0)
+  const result = new Uint8Array(totalLength)
+  let offset = 0
   for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.byteLength;
+    result.set(arr, offset)
+    offset += arr.byteLength
   }
-  return fromUint8Array(result);
+  return fromUint8Array(result)
 }
 
 /**
@@ -53,7 +62,7 @@ function parseBlob(value: string): Uint8Array {
  * @returns {ArrayBuffer} The encoded text as an ArrayBuffer
  */
 function textToBuffer(text: string): ArrayBuffer {
-  return new TextEncoder().encode(text).buffer as ArrayBuffer;
+  return new TextEncoder().encode(text).buffer as ArrayBuffer
 }
 
 /**
@@ -63,34 +72,39 @@ function textToBuffer(text: string): ArrayBuffer {
  * @returns {string} The decoded string
  */
 function bufferToText(buffer: ArrayBuffer): string {
-  return new TextDecoder().decode(buffer);
+  return new TextDecoder().decode(buffer)
 }
 
 /**
- * Derives a cryptographic key from a password and salt using PBKDF2.
- * PBKDF2 stretches the password into a key suitable for AES-GCM encryption.
- * - Password is encoded to bytes.
- * - Key material is imported as raw bytes for PBKDF2.
- * - Derives a 256-bit AES-GCM key.
+ * Derives a cryptographic key from a password and salt using Argon2id.
+ * Argon2id stretches the password into a key suitable for AES-GCM encryption.
+ * - Password is used directly in Argon2id hashing.
+ * - Produces a 256-bit (32-byte) raw hash, which is imported as an AES-GCM key.
  * This function is asynchronous because key derivation involves cryptographic operations.
  * @param {string} password - The password string
- * @param {ArrayBuffer} salt - The salt ArrayBuffer
+ * @param {Uint8Array} salt - The salt Uint8Array (must be provided; generated randomly for encryption)
  * @returns {Promise<CryptoKey>} Promise resolving to the derived CryptoKey
  */
-async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey> {
-  // Encode the password string into UTF-8 bytes.
-  const keyMaterial = await crypto.subtle.importKey(
+async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  // Use Argon2id to derive a 256-bit (32-byte) raw key from the password and salt.
+  const hashHex = await argon2id({
+    password,
+    salt,
+    iterations: ARGON2_ITERATIONS,
+    memorySize: ARGON2_MEMORY,
+    parallelism: ARGON2_PARALLELISM,
+    hashLength: ARGON2_HASH_LEN,
+    outputType: 'hex',
+  })
+
+  // Convert hex to Uint8Array for key import.
+  const hashBytes = new Uint8Array(hashHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+
+  // Import the derived raw hash as a CryptoKey for AES-GCM.
+  return crypto.subtle.importKey(
     'raw',
-    textToBuffer(password),
-    'PBKDF2',
-    false, // Not extractable
-    ['deriveKey'] // Allowed usages
-  )
-  // Derive the key using PBKDF2 with SHA-256 hash, specified iterations, and the provided salt.
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 }, // 256-bit AES key for GCM mode
+    hashBytes.buffer as ArrayBuffer,
+    { name: 'AES-GCM' },
     false, // Not extractable
     ['encrypt', 'decrypt'] // Allowed usages
   )
@@ -107,12 +121,12 @@ async function deriveKey(password: string, salt: ArrayBuffer): Promise<CryptoKey
  * @returns {Promise<string>} Promise resolving to the encrypted string
  */
 export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
-  // Generate a random 16-byte salt for PBKDF2. Salt prevents rainbow table attacks.
+  // Generate a random 16-byte salt for Argon2id. Salt prevents rainbow table attacks.
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
   // Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently.
   const iv = crypto.getRandomValues(new Uint8Array(IV_LEN))
-  // Derive the encryption key from password and salt.
-  const key = await deriveKey(password, salt.buffer as ArrayBuffer)
+  // Derive the encryption key from password and salt using Argon2id.
+  const key = await deriveKey(password, salt)
   // Encrypt the plaintext using AES-GCM with the derived key and IV.
   const ciphertext = await crypto.subtle.encrypt(
     {
@@ -122,9 +136,9 @@ export async function encryptField(plaintext: string, password: string, aad: str
     },
     key,
     textToBuffer(plaintext)
-  );
+  )
 
-  return concatToBase64(salt, iv, new Uint8Array(ciphertext));
+  return concatToBase64(salt, iv, new Uint8Array(ciphertext))
 }
 
 /**
@@ -141,7 +155,7 @@ export async function decryptField(encryptedBlob: string, password: string, aad:
   // Decode and validate the base64 blob
   const raw = parseBlob(encryptedBlob)
   // Slice the raw back to salt, iv and cipherText
-  const salt       = raw.slice(0, SALT_LEN).buffer as ArrayBuffer
+  const salt       = raw.slice(0, SALT_LEN)
   const iv         = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
   const ciphertext = raw.slice(SALT_LEN + IV_LEN)
   // Derive the decryption key using the same password and extracted salt.

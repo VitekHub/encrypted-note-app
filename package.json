@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "hash-wasm": "^4.12.0",
     "js-base64": "^3.7.8",
     "vue": "^3.4.38"
   },

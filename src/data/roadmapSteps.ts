@@ -30,7 +30,7 @@ export const roadmapSteps: RoadmapStep[] = [
   {
     title: 'Derive Password-Derived Key with Argon2id',
     goal:
-      'Use Argon2id (via the argon2-browser library) instead of PBKDF2 to turn the user\'s password into a strong symmetric key for subsequent operations.',
+      'To turn the user\'s password into a strong symmetric key for subsequent operations, instead of PBKDF2, use Argon2id via the \'hash-wasm\' library (not \'argon2-browser\' library as it doesn\'t work with vite and vitest properly).',
     flow: [
       'User enters password.',
       'Generate a random 128-bit salt (store it with the encrypted data).',

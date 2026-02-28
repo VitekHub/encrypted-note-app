@@ -3,7 +3,7 @@
     <button class="step-header" @click="isExpanded = !isExpanded">
       <span class="step-number">Step {{ stepNumber }}</span>
       <span class="step-title">{{ step.title }}</span>
-      <span v-if="stepNumber <= 1">
+      <span v-if="stepNumber <= 2">
         ✅
       </span>
       <span class="chevron" :class="{ expanded: isExpanded }">
