@@ -52,14 +52,14 @@ export const roadmapSteps: RoadmapStep[] = [
       'Generate a random RSA-OAEP key pair. Encrypt the RSA private key with the password-derived key (AES-GCM) and store the encrypted private key alongside the RSA public key.',
     flow: [
       'User enters password → Argon2id → Password-derived key (RAM only) → Encrypts data (no change from previous step)',
-      'Password-derived key decrypts the stored RSA private key (to unwrap a master key in the third step).'
+      'Password-derived key decrypts the stored RSA private key (to unwrap a master key in the next step).'
     ],
     securityGain: [
-      'The password now protects a small RSA private key instead of the entire data set.',
-      'Compromise of the password alone does not immediately expose all user data.'
+      'The RSA private key is now safely stored (encrypted with the password-derived key), so the private key itself cannot be read without the correct password.',
+      'When the next step is completed, this RSA key pair will be able to protect the master key, providing a clean separation between password-based protection and data-encryption keys.'
     ],
     dangers: [
-      'The RSA private key is the only secret protecting the data; if an attacker extracts the encrypted private key and cracks the password, they obtain the RSA private key and can subsequently unwrap any master key you later add.',
+      'A compromised password (or a successful Argon2id crack) would still expose the entire dataset because the RSA key is not yet used for any data protection.',
       'Until a master key is introduced, you still have to encrypt all data directly with the password-derived key (or with the RSA private key, which would be less efficient).'
     ]
   },
@@ -108,7 +108,7 @@ export const roadmapSteps: RoadmapStep[] = [
       'Decrypt using the appropriate legacy method (password-only or master-key).',
       'Derive the new field-specific key from the master key and re-encrypt the field.',
       'Replace the old ciphertext with the new one and record the field-salt.',
-      'After all rows are processed, delete the old password-derived-only ciphertexts and optionally purge the encrypted RSA private key if no longer needed for wrapping.'
+      'After all rows are processed, delete the old password-derived-only ciphertexts and purge any obsolete artifacts (like legacy salts).'
     ],
     securityGain: [
       'All data now resides exclusively under the strongest tier: field-specific keys derived from a random master key.',
