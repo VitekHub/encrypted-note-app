@@ -1,7 +1,7 @@
 <template>
   <div class="unlock-form">
     <p class="unlock-desc">
-      {{ noteExists ? 'Enter your password to decrypt your note.' : 'Set a password to encrypt your note.' }}
+      {{ signingUp ? 'Set a password to encrypt your note.' : 'Enter your password to decrypt your note.' }}
     </p>
     <div class="field">
       <label for="password">Password</label>
@@ -11,18 +11,18 @@
         type="password"
         placeholder="Enter password..."
         @input="handlePasswordInput"
-        @keydown.enter="noteExists ? $emit('unlock') : undefined"
+        @keydown.enter="signingUp ? undefined : $emit('unlock')"
       />
-      <p v-if="!noteExists" class="hint-msg">
+      <p v-if="signingUp" class="hint-msg">
         <span v-if="policyErrors.length" class="error-list">{{ policyErrors.join(', ') }}</span>
         <span v-else-if="!modelValue">Minimum 8 characters. Spaces and all character types accepted.</span>
         <span v-else-if="policyChecking">Checking...</span>
         <span v-else-if="passwordStrength.score < 3">Password is ok, but you should add capital letters and/or numbers.</span>
         <span v-else>You've chosen a solid password.</span>
       </p>
-      <PasswordStrength v-if="!noteExists && modelValue" :password="modelValue" />
+      <PasswordStrength v-if="signingUp && modelValue" :password="modelValue" />
     </div>
-    <div v-if="!noteExists" class="field">
+    <div v-if="signingUp" class="field">
       <label for="confirm-password">Confirm Password</label>
       <input
         id="confirm-password"
@@ -38,11 +38,11 @@
       <button
         class="btn-primary"
         :disabled="isSubmitDisabled"
-        @click="noteExists ? $emit('unlock') : handleCreate()"
+        @click="signingUp ? handleCreate() : $emit('unlock')"
       >
         {{ submitLabel }}
       </button>
-      <button v-if="noteExists" class="btn-drop" @click="$emit('drop')">
+      <button v-if="!signingUp" class="btn-drop" @click="$emit('drop')">
         Drop Database
       </button>
     </div>
@@ -57,7 +57,7 @@ import PasswordStrength from './PasswordStrength.vue'
 
 const props = defineProps<{
   modelValue: string
-  noteExists: boolean
+  signingUp: boolean
   loading: boolean
   error: string | null
 }>()
@@ -83,7 +83,7 @@ function handlePasswordInput(event: Event) {
   policyDirty.value = true
   policyErrors.value = []
 
-  if (props.noteExists) return
+  if (!props.signingUp) return
 
   if (debounceTimer) clearTimeout(debounceTimer)
   policyChecking.value = true
@@ -129,7 +129,7 @@ watch(confirmPassword, () => {
 
 const isSubmitDisabled = computed(() => {
   if (props.loading || policyChecking.value || !props.modelValue) return true
-  if (!props.noteExists) {
+  if (props.signingUp) {
     if (!confirmPassword.value) return true
     if (policyDirty.value && policyErrors.value.length > 0) return true
   }
@@ -139,7 +139,7 @@ const isSubmitDisabled = computed(() => {
 const submitLabel = computed(() => {
   if (policyChecking.value) return 'Checking...'
   if (props.loading) return 'Loading...'
-  return props.noteExists ? 'Decrypt & Open' : 'Create Note'
+  return props.signingUp ? 'Create Note' : 'Decrypt & Open'
 })
 </script>
 
