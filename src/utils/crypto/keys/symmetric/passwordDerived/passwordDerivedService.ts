@@ -8,6 +8,7 @@
 
 import { fromUint8Array, toUint8Array } from 'js-base64'
 import { argon2id } from 'hash-wasm'
+import type { PasswordDerivedService } from './types'
 
 /**
  * Parameters for Argon2id key derivation. These values balance security and performance:
@@ -110,76 +111,61 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   )
 }
 
-/**
- * Encrypts a plaintext string using a password.
- * Generates random salt and initialization vector (IV) for each encryption to ensure uniqueness.
- * Returns a Base64‑encoded blob that concatenates salt, IV and ciphertext.
- * This format allows the encrypted data to be stored as a string and later decrypted.
- * @param {string} plaintext - The text to encrypt
- * @param {string} password - The password for encryption
- * @param {string} aad - Additional authenticated data
- * @returns {Promise<string>} Promise resolving to the encrypted string
- */
-export async function encryptField(plaintext: string, password: string, aad: string): Promise<string> {
-  // Generate a random 16-byte salt for Argon2id. Salt prevents rainbow table attacks.
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
-  // Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently.
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LEN))
-  // Derive the encryption key from password and salt using Argon2id.
-  const key = await deriveKey(password, salt)
-  // Encrypt the plaintext using AES-GCM with the derived key and IV.
-  const ciphertext = await crypto.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv,
-      additionalData: textToBuffer(aad), // AAD ensures integrity of associated data
-    },
-    key,
-    textToBuffer(plaintext)
-  )
+export const passwordDerivedService: PasswordDerivedService = {
+  /** @inheritdoc */
+  async encrypt(plaintext: string, password: string, aad: string): Promise<string> {
+    // Generate a random 16-byte salt for Argon2id. Salt prevents rainbow table attacks.
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN))
+    // Generate a random 12-byte IV for AES-GCM. IV ensures that identical plaintexts encrypt differently.
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LEN))
+    // Derive the encryption key from password and salt using Argon2id.
+    const key = await deriveKey(password, salt)
+    // Encrypt the plaintext using AES-GCM with the derived key and IV.
+    const ciphertext = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv,
+        additionalData: textToBuffer(aad), // AAD ensures integrity of associated data
+      },
+      key,
+      textToBuffer(plaintext)
+    )
 
-  return concatToBase64(salt, iv, new Uint8Array(ciphertext))
-}
+    return concatToBase64(salt, iv, new Uint8Array(ciphertext))
+  },
 
-/**
- * Decrypts an encrypted string back to plaintext using the password.
- * Expects the input to be a Base64‑encoded blob that concatenates
- * salt, IV and ciphertext (produced by encryptField).
- * Throws an error if the format is invalid or decryption fails (e.g., wrong password).
- * @param {string} encryptedBlob - The Base64‑encoded encrypted blob
- * @param {string} password - The password for decryption
- * @param {string} aad - Additional authenticated data (must match encryption)
- * @returns {Promise<string>} Promise resolving to the decrypted plaintext
- */
-export async function decryptField(encryptedBlob: string, password: string, aad: string): Promise<string> {
-  // Decode and validate the base64 blob
-  const raw = parseBlob(encryptedBlob)
-  // Slice the raw back to salt, iv and cipherText
-  const salt       = raw.slice(0, SALT_LEN)
-  const iv         = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
-  const ciphertext = raw.slice(SALT_LEN + IV_LEN)
-  // Derive the decryption key using the same password and extracted salt.
-  const key = await deriveKey(password, salt)
-  // Decrypt the ciphertext using AES-GCM with the derived key and IV.
-  const plainBuffer = await crypto.subtle.decrypt(
-    {
-      name: 'AES-GCM',
-      iv,
-      additionalData: textToBuffer(aad), // Must match encryption AAD
-    },
-    key,
-    ciphertext
-  )
-  // Decode the decrypted bytes back to a string.
-  return bufferToText(plainBuffer)
-}
+  /** @inheritdoc */
+  async decrypt(encryptedBlob: string, password: string, aad: string): Promise<string> {
+    // Decode and validate the base64 blob
+    const raw = parseBlob(encryptedBlob)
+    // Slice the raw back to salt, iv and cipherText
+    const salt       = raw.slice(0, SALT_LEN)
+    const iv         = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
+    const ciphertext = raw.slice(SALT_LEN + IV_LEN)
+    // Derive the decryption key using the same password and extracted salt.
+    const key = await deriveKey(password, salt)
+    // Decrypt the ciphertext using AES-GCM with the derived key and IV.
+    const plainBuffer = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv,
+        additionalData: textToBuffer(aad), // Must match encryption AAD
+      },
+      key,
+      ciphertext
+    )
+    // Decode the decrypted bytes back to a string.
+    return bufferToText(plainBuffer)
+  },
 
-export function isEncrypted(value: string): boolean {
-  if (!value) return false
-  try {
-    parseBlob(value)
-    return true
-  } catch {
-    return false
-  }
+  /** @inheritdoc */
+  isEncrypted(value: string): boolean {
+    if (!value) return false
+    try {
+      parseBlob(value)
+      return true
+    } catch {
+      return false
+    }
+  },
 }

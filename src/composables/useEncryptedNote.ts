@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { encryptField, decryptField, isEncrypted } from '../utils/crypto/encryption'
+import { passwordDerivedService } from '../utils/crypto/keys/symmetric/passwordDerived'
 
 export function useEncryptedNote(storageKey: string) {
   const loading = ref(false)
@@ -14,7 +14,7 @@ export function useEncryptedNote(storageKey: string) {
     loading.value = true
     error.value = null
     try {
-      const encrypted = await encryptField(plaintext, password, aad)
+      const encrypted = await passwordDerivedService.encrypt(plaintext, password, aad)
       localStorage.setItem(storageKey, encrypted)
     } catch (e) {
       error.value = 'Failed to save note.'
@@ -29,11 +29,11 @@ export function useEncryptedNote(storageKey: string) {
     try {
       const stored = localStorage.getItem(storageKey)
       if (!stored) return null
-      if (!isEncrypted(stored)) {
+      if (!passwordDerivedService.isEncrypted(stored)) {
         error.value = 'Stored data is not in a valid encrypted format.'
         return null
       }
-      return await decryptField(stored, password, aad)
+      return await passwordDerivedService.decrypt(stored, password, aad)
     } catch (e) {
       error.value = 'Wrong password or corrupted data.'
       return null
@@ -44,7 +44,7 @@ export function useEncryptedNote(storageKey: string) {
 
   function hasNote(): boolean {
     const stored = localStorage.getItem(storageKey)
-    return stored !== null && isEncrypted(stored)
+    return stored !== null && passwordDerivedService.isEncrypted(stored)
   }
 
   function dropDatabase(): void {

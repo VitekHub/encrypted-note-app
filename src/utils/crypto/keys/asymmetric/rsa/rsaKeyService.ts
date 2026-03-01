@@ -1,5 +1,5 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
-import { encryptField, decryptField } from '../../../encryption'
+import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
 import { cryptoKeyStorage } from '../../../keyStorage'
 import type { RsaKeyPair, RsaKeyService } from './types'
 
@@ -36,8 +36,8 @@ export const rsaKeyService: RsaKeyService = {
     const publicKeyBase64 = fromUint8Array(new Uint8Array(exportedPublicKey))
     const privateKeyBase64 = fromUint8Array(new Uint8Array(exportedPrivateKey))
 
-    // 3. Encrypt private key using existing encryptField logic
-    const encryptedPrivateKey = await encryptField(
+    // 3. Encrypt private key using passwordDerivedService
+    const encryptedPrivateKey = await passwordDerivedService.encrypt(
       privateKeyBase64,
       password,
       RSA_PRIVATE_KEY_AAD
@@ -74,7 +74,7 @@ export const rsaKeyService: RsaKeyService = {
     const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
     if (!stored) throw new Error('RSA private key not found in storage')
 
-    const privateKeyBase64 = await decryptField(stored, password, RSA_PRIVATE_KEY_AAD)
+    const privateKeyBase64 = await passwordDerivedService.decrypt(stored, password, RSA_PRIVATE_KEY_AAD)
 
     return crypto.subtle.importKey(
       'pkcs8',
@@ -107,8 +107,8 @@ export const rsaKeyService: RsaKeyService = {
     const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
     if (!stored) throw new Error('RSA private key not found in storage')
 
-    const privateKeyBase64 = await decryptField(stored, oldPassword, RSA_PRIVATE_KEY_AAD)
-    const reEncrypted = await encryptField(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
+    const privateKeyBase64 = await passwordDerivedService.decrypt(stored, oldPassword, RSA_PRIVATE_KEY_AAD)
+    const reEncrypted = await passwordDerivedService.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
 
     await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, reEncrypted)
   },

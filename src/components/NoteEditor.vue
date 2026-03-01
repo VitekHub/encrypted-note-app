@@ -3,7 +3,7 @@
     <header class="toolbar">
       <h1>
         <img src="/favicon.svg" alt="lock icon" class="title-icon" />
-        Encrypted Note App
+        CipherNote
       </h1>
       <ThemeToggle />
     </header>
