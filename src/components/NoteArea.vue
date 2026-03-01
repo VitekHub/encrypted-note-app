@@ -8,7 +8,9 @@
       @input="$emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
     />
     <div class="actions">
-      <p v-if="saveStatus" class="save-status">{{ saveStatus }}</p>
+      <p v-if="saveStatus" class="save-status">
+        {{ saveStatus }}
+      </p>
       <div class="btn-row">
         <button class="btn-secondary" @click="$emit('lock')">Lock</button>
         <button class="btn-primary" :disabled="loading" @click="$emit('save')">
@@ -16,7 +18,9 @@
         </button>
       </div>
     </div>
-    <p v-if="error" class="error-msg">{{ error }}</p>
+    <p v-if="error" class="error-msg">
+      {{ error }}
+    </p>
   </div>
 </template>
 
@@ -122,7 +126,9 @@ $color-danger: #dc2626;
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
 
   &:hover {
     border-color: var(--color-accent);

@@ -37,11 +37,7 @@ export const rsaKeyService: RsaKeyService = {
     const privateKeyBase64 = fromUint8Array(new Uint8Array(exportedPrivateKey))
 
     // 3. Encrypt private key using passwordDerivedService
-    const encryptedPrivateKey = await passwordDerivedService.encrypt(
-      privateKeyBase64,
-      password,
-      RSA_PRIVATE_KEY_AAD
-    )
+    const encryptedPrivateKey = await passwordDerivedService.encrypt(privateKeyBase64, password, RSA_PRIVATE_KEY_AAD)
 
     // 4. Return both keys
     return { publicKeyBase64, encryptedPrivateKey }

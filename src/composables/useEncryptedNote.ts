@@ -4,7 +4,7 @@ import { passwordDerivedService } from '../utils/crypto/keys/symmetric/passwordD
 export function useEncryptedNote(storageKey: string) {
   const loading = ref(false)
   const error = ref<string | null>(null)
-  
+
   // Create additional authenticated data: userId:fieldName. This binds the encryption to the specific user and field
   const userId = 'TODO'
   const fieldName = 'note'
@@ -16,7 +16,7 @@ export function useEncryptedNote(storageKey: string) {
     try {
       const encrypted = await passwordDerivedService.encrypt(plaintext, password, aad)
       localStorage.setItem(storageKey, encrypted)
-    } catch (e) {
+    } catch {
       error.value = 'Failed to save note.'
     } finally {
       loading.value = false
@@ -34,7 +34,7 @@ export function useEncryptedNote(storageKey: string) {
         return null
       }
       return await passwordDerivedService.decrypt(stored, password, aad)
-    } catch (e) {
+    } catch {
       error.value = 'Wrong password or corrupted data.'
       return null
     } finally {

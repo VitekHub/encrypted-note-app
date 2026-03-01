@@ -1,15 +1,15 @@
 /**
  * Service for encrypting and decrypting data using password-derived keys.
- * 
+ *
  * This service provides methods to securely encrypt plaintext using a password,
  * with automatic generation of random salt and initialization vectors (IV) to ensure
  * each encryption is unique. Encrypted data is stored as a Base64-encoded blob
  * containing salt, IV, and ciphertext concatenated together, allowing it to be
  * persisted as a string and later decrypted.
- * 
+ *
  * Additional authenticated data (AAD) can be provided to ensure encrypted content
  * cannot be used in different contexts without detection.
- * 
+ *
  * @interface PasswordDerivedService
  */
 export interface PasswordDerivedService {
@@ -24,7 +24,7 @@ export interface PasswordDerivedService {
    * @returns {Promise<string>} Promise resolving to the encrypted string
    */
   encrypt(plaintext: string, password: string, aad: string): Promise<string>
-  
+
   /**
    * Decrypts an encrypted string back to plaintext using the password.
    * Expects the input to be a Base64‑encoded blob that concatenates

@@ -3,12 +3,16 @@
     <button class="step-header" @click="isExpanded = !isExpanded">
       <span class="step-number">Step {{ stepNumber }}</span>
       <span class="step-title">{{ step.title }}</span>
-      <span v-if="stepNumber <= 3">
-        ✅
-      </span>
+      <span v-if="stepNumber <= 3">✅</span>
       <span class="chevron" :class="{ expanded: isExpanded }">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M6 5L10 9L6 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path
+            d="M6 5L10 9L6 13"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </span>
     </button>
@@ -16,12 +20,15 @@
     <div v-if="isExpanded" class="step-content">
       <div class="content-section">
         <h4 class="section-label">Goal</h4>
-        <p class="section-text">{{ step.goal }}</p>
+        <p class="section-text">
+          {{ step.goal }}
+        </p>
       </div>
 
-
       <div v-for="section in sections(step)" :key="section.key" class="content-section">
-        <h4 class="section-label">{{ section.label }}</h4>
+        <h4 class="section-label">
+          {{ section.label }}
+        </h4>
         <ul class="points-list">
           <li v-for="(item, idx) in section.items" :key="idx" class="point-item">
             {{ item }}
@@ -47,7 +54,7 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-  initialExpanded: false
+  initialExpanded: false,
 })
 
 const isExpanded = ref(false)
@@ -117,7 +124,9 @@ const sections = (step: RoadmapStepType) => [
   height: 20px;
   color: var(--color-text);
   opacity: 0.6;
-  transition: transform 0.3s ease, opacity 0.2s ease;
+  transition:
+    transform 0.3s ease,
+    opacity 0.2s ease;
 
   &.expanded {
     transform: rotate(90deg);

@@ -17,7 +17,9 @@
         <span v-if="policyErrors.length" class="error-list">{{ policyErrors.join(', ') }}</span>
         <span v-else-if="!modelValue">Minimum 8 characters. Spaces and all character types accepted.</span>
         <span v-else-if="policyChecking">Checking...</span>
-        <span v-else-if="passwordStrength.score < 3">Password is ok, but you should add capital letters and/or numbers.</span>
+        <span v-else-if="passwordStrength.score < 3">
+          Password is ok, but you should add capital letters and/or numbers.
+        </span>
         <span v-else>You've chosen a solid password.</span>
       </p>
       <PasswordStrength v-if="signingUp && modelValue" :password="modelValue" />
@@ -33,18 +35,14 @@
       />
       <p v-if="confirmMismatch" class="error-msg">Passwords do not match.</p>
     </div>
-    <p v-if="error" class="error-msg">{{ error }}</p>
+    <p v-if="error" class="error-msg">
+      {{ error }}
+    </p>
     <div class="form-actions">
-      <button
-        class="btn-primary"
-        :disabled="isSubmitDisabled"
-        @click="signingUp ? handleCreate() : $emit('unlock')"
-      >
+      <button class="btn-primary" :disabled="isSubmitDisabled" @click="signingUp ? handleCreate() : $emit('unlock')">
         {{ submitLabel }}
       </button>
-      <button v-if="!signingUp" class="btn-drop" @click="$emit('drop')">
-        Drop Database
-      </button>
+      <button v-if="!signingUp" class="btn-drop" @click="$emit('drop')">Drop Database</button>
     </div>
   </div>
 </template>
@@ -243,7 +241,9 @@ input[type='password'] {
   border: 1.5px solid $color-danger;
   border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
   margin-left: auto;
 
   &:hover {

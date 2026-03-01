@@ -54,7 +54,9 @@ export async function validatePassword(password: string): Promise<PasswordValida
     const pwned = await checkPwnedPassword(password)
     if (pwned) {
       const formatted = Number(pwned).toLocaleString('en-US', { useGrouping: true }).replace(/,/g, ' ')
-      errors.push(`This password has appeared in known data breaches (${formatted} times). Please choose a different password.`)
+      errors.push(
+        `This password has appeared in known data breaches (${formatted} times). Please choose a different password.`
+      )
     }
   }
 
@@ -79,7 +81,7 @@ async function checkPwnedPassword(password: string): Promise<number> {
   try {
     const hashBuffer = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(password))
     const hashHex = Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
+      .map((b) => b.toString(16).padStart(2, '0'))
       .join('')
       .toUpperCase()
 
@@ -87,7 +89,7 @@ async function checkPwnedPassword(password: string): Promise<number> {
     const suffix = hashHex.slice(5)
 
     // also returns number of times a specific password has been found in data breaches
-    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`,{ headers: { 'Add-Padding': 'true' } })
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, { headers: { 'Add-Padding': 'true' } })
 
     if (!res.ok) return 0
 

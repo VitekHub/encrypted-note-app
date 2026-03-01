@@ -46,7 +46,9 @@ const options: { label: string; value: ThemeMode }[] = [
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
   line-height: 1.5;
 
   &:hover:not(.active) {

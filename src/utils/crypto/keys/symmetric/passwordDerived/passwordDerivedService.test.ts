@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { passwordDerivedService } from './passwordDerivedService'
 
-const PASSWORD  = 'test-password-123'
-const AAD       = 'note-id-abc'
+const PASSWORD = 'test-password-123'
+const AAD = 'note-id-abc'
 const PLAINTEXT = 'Hello, secret world!'
 
 describe('passwordDerivedService.encrypt', () => {

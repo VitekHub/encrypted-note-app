@@ -19,11 +19,11 @@ import type { PasswordDerivedService } from './types'
  * which protects against dictionary attacks, but also increases computation time for encryption/decryption.
  */
 const ARGON2_ITERATIONS = 3
-const ARGON2_MEMORY = 64 * 1024 // 64 MiB (in KiB)
+const ARGON2_MEMORY = 64 * 1024 // 64 MiB (in KiB)
 const ARGON2_PARALLELISM = 4 // threads
-const ARGON2_HASH_LEN    = 32 // 256‑bit output (32 bytes)
-const SALT_LEN   = 16 // 128-bit salt
-const IV_LEN     = 12 // 96-bit IV (recommended for GCM)
+const ARGON2_HASH_LEN = 32 // 256-bit output (32 bytes)
+const SALT_LEN = 16 // 128-bit salt
+const IV_LEN = 12 // 96-bit IV (recommended for GCM)
 const MIN_BLOB_LEN = SALT_LEN + IV_LEN + 1 // at least 1 byte for ciphertext
 
 /**
@@ -99,7 +99,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   })
 
   // Convert hex to Uint8Array for key import.
-  const hashBytes = new Uint8Array(hashHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+  const hashBytes = new Uint8Array(hashHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)))
 
   // Import the derived raw hash as a CryptoKey for AES-GCM.
   return crypto.subtle.importKey(
@@ -139,8 +139,8 @@ export const passwordDerivedService: PasswordDerivedService = {
     // Decode and validate the base64 blob
     const raw = parseBlob(encryptedBlob)
     // Slice the raw back to salt, iv and cipherText
-    const salt       = raw.slice(0, SALT_LEN)
-    const iv         = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
+    const salt = raw.slice(0, SALT_LEN)
+    const iv = raw.slice(SALT_LEN, SALT_LEN + IV_LEN)
     const ciphertext = raw.slice(SALT_LEN + IV_LEN)
     // Derive the decryption key using the same password and extracted salt.
     const key = await deriveKey(password, salt)

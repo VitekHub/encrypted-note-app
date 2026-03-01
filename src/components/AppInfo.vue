@@ -3,9 +3,9 @@
     <div class="about">
       <h2 class="section-title">About</h2>
       <p class="about-text">
-        A private, zero-knowledge notepad. Your note is encrypted in the browser using AES-256-GCM.
-        Passwords are checked against the HaveIBeenPwned database.
-        This is an alfa version with "Drop Database" button that removes everything from the local storage.
+        A private, zero-knowledge notepad. Your note is encrypted in the browser using AES-256-GCM. Passwords are
+        checked against the HaveIBeenPwned database. This is an alfa version with "Drop Database" button that removes
+        everything from the local storage.
       </p>
     </div>
 
@@ -16,7 +16,7 @@
           <span class="feature-dot" />
           <div>
             <span class="feature-title">{{ feature.title }}</span>
-            <span class="feature-desc"> - {{ feature.desc }}</span>
+            <span class="feature-desc">- {{ feature.desc }}</span>
           </div>
         </li>
       </ul>

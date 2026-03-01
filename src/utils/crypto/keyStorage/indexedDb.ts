@@ -8,7 +8,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import type { CryptoKeyStorage } from './types'
 
-const CRYPTO_DB_NAME    = 'app-crypto'
+const CRYPTO_DB_NAME = 'app-crypto'
 const CRYPTO_STORE_NAME = 'keys'
 const CRYPTO_DB_VERSION = 1
 
@@ -32,7 +32,7 @@ function getCryptoDb(): Promise<IDBPDatabase> {
       }
     },
     blocked() {
-      console.warn(`IndexedDB ${CRYPTO_DB_NAME} blocked - another tab may have it open`)
+      console.warn(`IndexedDB ${CRYPTO_DB_NAME} blocked - another tab may have it open`) // eslint-disable-line no-console
     },
     blocking(_currentVersion, _blockedVersion, event) {
       const db = event.target as IDBDatabase
@@ -73,7 +73,7 @@ function getCryptoDb(): Promise<IDBPDatabase> {
 export const indexedDbKeyStorage: CryptoKeyStorage = {
   /**
    * @inheritdoc
-   * 
+   *
    * @throws May reject if IndexedDB fails to open or read (rare in normal usage)
    */
   async get(keyName: string): Promise<string | undefined> {
@@ -83,7 +83,7 @@ export const indexedDbKeyStorage: CryptoKeyStorage = {
 
   /**
    * @inheritdoc
-   * 
+   *
    * @throws May reject if IndexedDB transaction fails (disk full, quota exceeded, etc.)
    */
   async set(keyName: string, value: string): Promise<void> {
@@ -93,7 +93,7 @@ export const indexedDbKeyStorage: CryptoKeyStorage = {
 
   /**
    * @inheritdoc
-   * 
+   *
    * @throws May reject on IndexedDB errors
    */
   async delete(keyName: string): Promise<void> {

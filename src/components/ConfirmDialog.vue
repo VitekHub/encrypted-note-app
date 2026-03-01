@@ -2,11 +2,17 @@
   <Teleport to="body">
     <div class="dialog-backdrop" @click.self="$emit('cancel')">
       <div class="dialog">
-        <h2 class="dialog-title">{{ title }}</h2>
-        <p class="dialog-message">{{ message }}</p>
+        <h2 class="dialog-title">
+          {{ title }}
+        </h2>
+        <p class="dialog-message">
+          {{ message }}
+        </p>
         <div class="dialog-actions">
           <button class="btn-secondary" @click="$emit('cancel')">Cancel</button>
-          <button class="btn-danger" @click="$emit('confirm')">{{ confirmLabel }}</button>
+          <button class="btn-danger" @click="$emit('confirm')">
+            {{ confirmLabel }}
+          </button>
         </div>
       </div>
     </div>
@@ -83,7 +89,9 @@ $color-danger: #dc2626;
   border: 1.5px solid var(--color-border);
   border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
 
   &:hover {
     border-color: var(--color-accent);
