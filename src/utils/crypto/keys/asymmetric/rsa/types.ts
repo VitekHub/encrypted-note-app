@@ -1,8 +1,3 @@
-export interface RsaKeyPair {
-  publicKeyBase64: string
-  encryptedPrivateKey: string
-}
-
 /**
  * Service that manages the full lifecycle of an RSA-OAEP 2048-bit key pair:
  * generation, persistent storage, loading, existence checks, deletion, and
@@ -14,26 +9,22 @@ export interface RsaKeyPair {
  */
 export interface RsaKeyService {
   /**
-   * Generates a fresh RSA-OAEP 2048-bit key pair and returns the serialised
-   * form ready for storage.  The private key is immediately encrypted with
-   * `encryptField` using the supplied password so it is never held in memory
-   * in plain-text form beyond this call.
+   * Generates a fresh RSA-OAEP 2048-bit key pair and returns the raw CryptoKey objects.
    *
-   * @param password - The user's master password used to encrypt the private key.
-   * @returns A promise that resolves to an {@link RsaKeyPair} containing the
-   *   SPKI-encoded public key (base64) and the encrypted private key blob.
+   * @returns A promise that resolves to an {@link CryptoKeyPair} containing the raw unencrypted keys.
    */
-  generateKeys(password: string): Promise<RsaKeyPair>
+  generateKeys(): Promise<CryptoKeyPair>
 
   /**
-   * Persists both halves of an {@link RsaKeyPair} to the application's
-   * key storage.  Both writes are performed concurrently.
+   * Takes a generated RSA key pair, exports it, encrypts the private key
+   * with the given password, and stores both values.
    *
-   * @param keyPair - The serialised key pair (as returned by
+   * @param keyPair - The RSA key pair (as returned by
    *   {@link generateKeys}) to store.
+   * @param password - The user's master password used to encrypt the private key.
    * @returns A promise that resolves once both keys have been saved.
    */
-  storeKeys(keyPair: RsaKeyPair): Promise<void>
+  storeKeys(keyPair: CryptoKeyPair, password: string): Promise<void>
 
   /**
    * Retrieves and imports the RSA public key from storage as a non-extractable

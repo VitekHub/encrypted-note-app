@@ -1,7 +1,7 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
 import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
 import { cryptoKeyStorage } from '../../../keyStorage'
-import type { RsaKeyPair, RsaKeyService } from './types'
+import type { RsaKeyService } from './types'
 
 /** Key name under which the RSA public key (SPKI format, base64) is stored */
 const RSA_PUBLIC_KEY_NAME = 'rsa_public_key_spki'
@@ -22,32 +22,29 @@ const RSA_ALGORITHM = {
 
 export const rsaKeyService: RsaKeyService = {
   /** @inheritdoc */
-  async generateKeys(password: string): Promise<RsaKeyPair> {
-    // 1. Generate RSA key pair
-    const keyPair = await crypto.subtle.generateKey(
+  async generateKeys(): Promise<CryptoKeyPair> {
+    return await crypto.subtle.generateKey(
       RSA_ALGORITHM,
       true, // extractable only temporarily
       ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
     )
+  },
 
-    // 2. Export keys to base64
+  /** @inheritdoc */
+  async storeKeys(keyPair: CryptoKeyPair, password: string): Promise<void> {
+    // 1. Export keys to base64
     const exportedPublicKey = await crypto.subtle.exportKey('spki', keyPair.publicKey)
     const exportedPrivateKey = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
     const publicKeyBase64 = fromUint8Array(new Uint8Array(exportedPublicKey))
     const privateKeyBase64 = fromUint8Array(new Uint8Array(exportedPrivateKey))
 
-    // 3. Encrypt private key using passwordDerivedService
+    // 2. Encrypt private key using passwordDerivedService
     const encryptedPrivateKey = await passwordDerivedService.encrypt(privateKeyBase64, password, RSA_PRIVATE_KEY_AAD)
 
-    // 4. Return both keys
-    return { publicKeyBase64, encryptedPrivateKey }
-  },
-
-  /** @inheritdoc */
-  async storeKeys(keyPair: RsaKeyPair): Promise<void> {
+    // 3. Store both keys
     await Promise.all([
-      cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, keyPair.publicKeyBase64),
-      cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, keyPair.encryptedPrivateKey),
+      cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, publicKeyBase64),
+      cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, encryptedPrivateKey),
     ])
   },
 

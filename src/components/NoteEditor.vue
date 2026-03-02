@@ -44,7 +44,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useEncryptedNote } from '../composables/useEncryptedNote'
-import { rsaKeyService } from '../utils/crypto/keys/asymmetric/rsa'
+import { useSessionKeys } from '../composables/useSessionKeys'
+import { cryptoService } from '../utils/crypto/cryptoService'
 import UnlockForm from './UnlockForm.vue'
 import NoteArea from './NoteArea.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -53,7 +54,8 @@ import ThemeToggle from './ThemeToggle.vue'
 
 const STORAGE_KEY = 'app-note'
 
-const { saveNote, loadNote, dropDatabase, loading, error } = useEncryptedNote(STORAGE_KEY)
+const { saveNote, loadNote, clearNote, loading, error } = useEncryptedNote(STORAGE_KEY)
+const { setMasterKey, clearMasterKey } = useSessionKeys()
 
 const passwordInput = ref('')
 const noteText = ref('')
@@ -65,37 +67,39 @@ const keysExist = ref(false)
 const signingUp = computed(() => !keysExist.value)
 
 onMounted(async () => {
-  keysExist.value = await rsaKeyService.hasKeys()
+  keysExist.value = await cryptoService.isSetUp()
 })
 
 async function handleUnlock() {
   if (!passwordInput.value) return
-  if (signingUp.value) {
-    loading.value = true
-    try {
-      const keyPair = await rsaKeyService.generateKeys(passwordInput.value)
-      await rsaKeyService.storeKeys(keyPair)
+  loading.value = true
+  try {
+    if (signingUp.value) {
+      const key = await cryptoService.setup(passwordInput.value)
+      setMasterKey(key)
       keysExist.value = true
       unlocked.value = true
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to generate encryption keys'
-    } finally {
-      loading.value = false
+    } else {
+      const key = await cryptoService.unlock(passwordInput.value)
+      setMasterKey(key)
+      const result = await loadNote()
+      if (result !== null) {
+        noteText.value = result
+      }
+      if (!error.value) {
+        unlocked.value = true
+      }
     }
-  } else {
-    const result = await loadNote(passwordInput.value)
-    if (result !== null) {
-      noteText.value = result
-    }
-    if (!error.value) {
-      unlocked.value = true
-    }
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to unlock'
+  } finally {
+    loading.value = false
   }
 }
 
 async function handleSave() {
   saveStatus.value = ''
-  await saveNote(noteText.value, passwordInput.value)
+  await saveNote(noteText.value)
   if (!error.value) {
     saveStatus.value = 'Saved.'
     setTimeout(() => (saveStatus.value = ''), 2000)
@@ -103,6 +107,7 @@ async function handleSave() {
 }
 
 function handleLock() {
+  clearMasterKey()
   unlocked.value = false
   noteText.value = ''
   passwordInput.value = ''
@@ -111,8 +116,9 @@ function handleLock() {
 }
 
 async function handleDrop() {
-  await rsaKeyService.deleteKeys()
-  dropDatabase()
+  await cryptoService.teardown()
+  clearNote()
+  clearMasterKey()
   showDropConfirm.value = false
   unlocked.value = false
   noteText.value = ''

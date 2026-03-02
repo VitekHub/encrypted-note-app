@@ -68,6 +68,7 @@ export const roadmapSteps: RoadmapStep[] = [
       'At first run, generate a random 256-bit master key (kept in RAM only).',
       'Wrap the master key with the RSA public key → produce a wrapped-master-blob.',
       'Store the wrapped-master-blob alongside the encrypted RSA private key.',
+      'Remove the password derived key data encryption and encrypt the data with the master key.',
     ],
     securityGain: [
       "Bulk data is now protected by a high-entropy random key instead of the user's password.",

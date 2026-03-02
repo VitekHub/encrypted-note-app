@@ -1,2 +1,2 @@
-export type { RsaKeyPair, RsaKeyService } from './types'
+export type { RsaKeyService } from './types'
 export { rsaKeyService } from './rsaKeyService'

@@ -15,25 +15,31 @@ beforeEach(() => {
 })
 
 describe('generateKeys', () => {
-  it('returns non-empty publicKeyBase64 and encryptedPrivateKey', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    expect(typeof keyPair.publicKeyBase64).toBe('string')
-    expect(keyPair.publicKeyBase64.length).toBeGreaterThan(0)
-    expect(typeof keyPair.encryptedPrivateKey).toBe('string')
-    expect(keyPair.encryptedPrivateKey.length).toBeGreaterThan(0)
+  it('returns a CryptoKeyPair with public and private keys', async () => {
+    const keyPair = await rsaKeyService.generateKeys()
+    expect(keyPair.publicKey.type).toBe('public')
+    expect(keyPair.privateKey.type).toBe('private')
   })
 
-  it('produces different encryptedPrivateKey on two calls with the same password', async () => {
-    const a = await rsaKeyService.generateKeys(PASSWORD)
-    const b = await rsaKeyService.generateKeys(PASSWORD)
-    expect(a.encryptedPrivateKey).not.toBe(b.encryptedPrivateKey)
+  it('returns keys with correct algorithm', async () => {
+    const keyPair = await rsaKeyService.generateKeys()
+    expect(keyPair.publicKey.algorithm).toMatchObject({ name: 'RSA-OAEP' })
+    expect(keyPair.privateKey.algorithm).toMatchObject({ name: 'RSA-OAEP' })
+  })
+
+  it('produces different key pairs on two calls', async () => {
+    const a = await rsaKeyService.generateKeys()
+    const b = await rsaKeyService.generateKeys()
+    const exportedA = await crypto.subtle.exportKey('spki', a.publicKey)
+    const exportedB = await crypto.subtle.exportKey('spki', b.publicKey)
+    expect(new Uint8Array(exportedA)).not.toEqual(new Uint8Array(exportedB))
   })
 })
 
 describe('storeKeys', () => {
   it('makes hasKeys return true after storing', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     expect(await rsaKeyService.hasKeys()).toBe(true)
   })
 })
@@ -44,21 +50,21 @@ describe('hasKeys', () => {
   })
 
   it('returns true after a full key pair is stored', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     expect(await rsaKeyService.hasKeys()).toBe(true)
   })
 
   it('returns false when only the public key is present', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     store.delete('rsa_private_key_encrypted')
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
 
   it('returns false when only the private key is present', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     store.delete('rsa_public_key_spki')
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
@@ -66,8 +72,8 @@ describe('hasKeys', () => {
 
 describe('loadPublicKey', () => {
   it('returns a CryptoKey with type public and correct usages', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     const key = await rsaKeyService.loadPublicKey()
     expect(key.type).toBe('public')
     expect(key.usages).toContain('encrypt')
@@ -81,8 +87,8 @@ describe('loadPublicKey', () => {
 
 describe('loadPrivateKey', () => {
   it('returns a CryptoKey with type private and correct usages', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     const key = await rsaKeyService.loadPrivateKey(PASSWORD)
     expect(key.type).toBe('private')
     expect(key.usages).toContain('decrypt')
@@ -94,16 +100,16 @@ describe('loadPrivateKey', () => {
   })
 
   it('throws when the wrong password is used', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     await expect(rsaKeyService.loadPrivateKey('wrong-password')).rejects.toThrow()
   })
 })
 
 describe('deleteKeys', () => {
   it('makes hasKeys return false after deleting', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     await rsaKeyService.deleteKeys()
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
@@ -111,8 +117,8 @@ describe('deleteKeys', () => {
 
 describe('updatePassword', () => {
   it('changes the stored encrypted private key blob', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     const before = store.get('rsa_private_key_encrypted')
     await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
     const after = store.get('rsa_private_key_encrypted')
@@ -120,16 +126,16 @@ describe('updatePassword', () => {
   })
 
   it('allows loading the private key with the new password', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
     const key = await rsaKeyService.loadPrivateKey(NEW_PASSWORD)
     expect(key.type).toBe('private')
   })
 
   it('rejects loading the private key with the old password after rotation', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
     await expect(rsaKeyService.loadPrivateKey(PASSWORD)).rejects.toThrow()
   })
@@ -141,8 +147,8 @@ describe('updatePassword', () => {
 
 describe('round-trip lifecycle', () => {
   it('full lifecycle: generate → store → load both keys → delete', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
 
     const publicKey = await rsaKeyService.loadPublicKey()
     const privateKey = await rsaKeyService.loadPrivateKey(PASSWORD)
@@ -154,8 +160,8 @@ describe('round-trip lifecycle', () => {
   })
 
   it('password rotation round-trip', async () => {
-    const keyPair = await rsaKeyService.generateKeys(PASSWORD)
-    await rsaKeyService.storeKeys(keyPair)
+    const keyPair = await rsaKeyService.generateKeys()
+    await rsaKeyService.storeKeys(keyPair, PASSWORD)
     await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
 
     const key = await rsaKeyService.loadPrivateKey(NEW_PASSWORD)

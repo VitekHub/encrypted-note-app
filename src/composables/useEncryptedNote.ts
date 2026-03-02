@@ -1,20 +1,26 @@
 import { ref } from 'vue'
-import { passwordDerivedService } from '../utils/crypto/keys/symmetric/passwordDerived'
+import { masterKeyService } from '../utils/crypto/keys/symmetric/master'
+import { useSessionKeys } from './useSessionKeys'
 
 export function useEncryptedNote(storageKey: string) {
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const { masterKey } = useSessionKeys()
 
   // Create additional authenticated data: userId:fieldName. This binds the encryption to the specific user and field
   const userId = 'TODO'
   const fieldName = 'note'
   const aad = `${userId}:${fieldName}`
 
-  async function saveNote(plaintext: string, password: string): Promise<void> {
+  async function saveNote(plaintext: string): Promise<void> {
+    if (!masterKey.value) {
+      error.value = 'No active session key.'
+      return
+    }
     loading.value = true
     error.value = null
     try {
-      const encrypted = await passwordDerivedService.encrypt(plaintext, password, aad)
+      const encrypted = await masterKeyService.encrypt(plaintext, masterKey.value, aad)
       localStorage.setItem(storageKey, encrypted)
     } catch {
       error.value = 'Failed to save note.'
@@ -23,17 +29,21 @@ export function useEncryptedNote(storageKey: string) {
     }
   }
 
-  async function loadNote(password: string): Promise<string | null> {
+  async function loadNote(): Promise<string | null> {
+    if (!masterKey.value) {
+      error.value = 'No active session key.'
+      return null
+    }
     loading.value = true
     error.value = null
     try {
       const stored = localStorage.getItem(storageKey)
       if (!stored) return null
-      if (!passwordDerivedService.isEncrypted(stored)) {
+      if (!masterKeyService.isEncrypted(stored)) {
         error.value = 'Stored data is not in a valid encrypted format.'
         return null
       }
-      return await passwordDerivedService.decrypt(stored, password, aad)
+      return await masterKeyService.decrypt(stored, masterKey.value, aad)
     } catch {
       error.value = 'Wrong password or corrupted data.'
       return null
@@ -44,13 +54,13 @@ export function useEncryptedNote(storageKey: string) {
 
   function hasNote(): boolean {
     const stored = localStorage.getItem(storageKey)
-    return stored !== null && passwordDerivedService.isEncrypted(stored)
+    return stored !== null && masterKeyService.isEncrypted(stored)
   }
 
-  function dropDatabase(): void {
+  function clearNote(): void {
     localStorage.removeItem(storageKey)
     error.value = null
   }
 
-  return { saveNote, loadNote, hasNote, dropDatabase, loading, error }
+  return { saveNote, loadNote, hasNote, clearNote, loading, error }
 }
