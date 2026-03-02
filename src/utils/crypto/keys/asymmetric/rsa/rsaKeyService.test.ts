@@ -1,22 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { rsaKeyService } from './rsaKeyService'
+import { store } from '../../../testUtils'
 
-const store = new Map<string, string>()
-
-vi.mock('../../../keyStorage', () => ({
-  cryptoKeyStorage: {
-    get: (key: string) => Promise.resolve(store.get(key)),
-    set: (key: string, value: string) => {
-      store.set(key, value)
-      return Promise.resolve()
-    },
-    delete: (key: string) => {
-      store.delete(key)
-      return Promise.resolve()
-    },
-    has: (key: string) => Promise.resolve(store.has(key)),
-  },
-}))
+vi.mock('../../../keyStorage', async () => {
+  const { mockCryptoKeyStorage } = await import('../../../testUtils')
+  return { cryptoKeyStorage: mockCryptoKeyStorage }
+})
 
 const PASSWORD = 'test-password-rsa'
 const NEW_PASSWORD = 'new-password-rsa'

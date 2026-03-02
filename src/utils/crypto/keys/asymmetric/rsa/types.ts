@@ -67,7 +67,7 @@ export interface RsaKeyService {
   hasKeys(): Promise<boolean>
 
   /**
-   * Removes both the public and private keys from storage.  Both deletions
+   * Removes both the public and private keys from storage. Both deletions
    * are performed concurrently.
    *
    * @returns A promise that resolves once both keys have been deleted.
