@@ -109,8 +109,8 @@ describe('loadKey', () => {
     await masterKeyService.storeKey(masterKey, publicKey)
     const loaded = await masterKeyService.loadKey(privateKey)
     expect(loaded.type).toBe('secret')
-    expect(loaded.usages).toContain('encrypt')
-    expect(loaded.usages).toContain('decrypt')
+    expect(loaded.usages).toContain('deriveKey')
+    expect(loaded.usages).toContain('deriveBits')
   })
 
   it('throws when no key exists in storage', async () => {
@@ -157,88 +157,6 @@ describe('isEncrypted', () => {
   it('returns false for too-short blob', () => {
     expect(masterKeyService.isEncrypted('YQ==')).toBe(false)
   })
-
-  it('returns true for a real encrypted blob', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const encrypted = await masterKeyService.encrypt('test', loaded, 'aad')
-    expect(masterKeyService.isEncrypted(encrypted)).toBe(true)
-  })
-})
-
-describe('encrypt', () => {
-  it('returns a non-empty base64 string', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const result = await masterKeyService.encrypt('plaintext', loaded, 'aad')
-    expect(typeof result).toBe('string')
-    expect(result.length).toBeGreaterThan(0)
-  })
-
-  it('produces different ciphertexts for same plaintext (random IV)', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const a = await masterKeyService.encrypt('same', loaded, 'aad')
-    const b = await masterKeyService.encrypt('same', loaded, 'aad')
-    expect(a).not.toBe(b)
-  })
-})
-
-describe('decrypt', () => {
-  it('round-trip: encrypt then decrypt returns original plaintext', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const original = 'hello world'
-    const aad = 'user:field'
-    const encrypted = await masterKeyService.encrypt(original, loaded, aad)
-    const decrypted = await masterKeyService.decrypt(encrypted, loaded, aad)
-
-    expect(decrypted).toBe(original)
-  })
-
-  it('throws when decrypting with wrong key', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const wrongKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
-
-    const encrypted = await masterKeyService.encrypt('test', loaded, 'aad')
-    await expect(masterKeyService.decrypt(encrypted, wrongKey, 'aad')).rejects.toThrow()
-  })
-
-  it('throws when AAD does not match', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const encrypted = await masterKeyService.encrypt('test', loaded, 'correct-aad')
-    await expect(masterKeyService.decrypt(encrypted, loaded, 'wrong-aad')).rejects.toThrow()
-  })
-
-  it('throws for corrupted blob', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const corrupted = 'AAAAAAAAAAAAAAAA'
-    await expect(masterKeyService.decrypt(corrupted, loaded, 'aad')).rejects.toThrow()
-  })
 })
 
 describe('round-trip lifecycle', () => {
@@ -253,12 +171,14 @@ describe('round-trip lifecycle', () => {
     const loaded = await masterKeyService.loadKey(privateKey)
 
     expect(loaded.type).toBe('secret')
-    expect(loaded.algorithm).toMatchObject({ name: 'AES-GCM', length: 256 })
+    expect(loaded.algorithm).toMatchObject({ name: 'HKDF' })
 
     await masterKeyService.deleteKey()
     expect(await masterKeyService.hasKey()).toBe(false)
   })
 
+  // todo, update this and move to fieldKeyService.test.ts
+  /*
   it('loaded key can encrypt and decrypt data', async () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
 
@@ -274,7 +194,10 @@ describe('round-trip lifecycle', () => {
 
     expect(new TextDecoder().decode(decrypted)).toBe('hello master key')
   })
+    */
 
+  // todo, update this and move to fieldKeyService.test.ts
+  /*
   it('two separate loads from the same stored key produce equivalent keys', async () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
 
@@ -292,4 +215,5 @@ describe('round-trip lifecycle', () => {
 
     expect(new TextDecoder().decode(decrypted)).toBe('consistency check')
   })
+  */
 })

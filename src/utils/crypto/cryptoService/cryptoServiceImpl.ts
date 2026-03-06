@@ -13,7 +13,7 @@ export const cryptoService: CryptoService = {
     const masterKey = await masterKeyService.generateKey()
     await masterKeyService.storeKey(masterKey, rsaKeyPair.publicKey)
 
-    return masterKey
+    return masterKeyService.convertToDerivable(masterKey)
   },
 
   /** @inheritdoc */

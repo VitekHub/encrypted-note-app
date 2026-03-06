@@ -21,6 +21,9 @@ export interface MasterKeyService {
    */
   generateKey(): Promise<CryptoKey>
 
+  /** convert a AES master key so that it can be used with HKDF */
+  convertToDerivable(generatedMasterKey: CryptoKey): Promise<CryptoKey>
+
   /**
    * Persists the RSA-wrapped Master Key to IndexedDB storage.
    *
@@ -79,7 +82,7 @@ export interface MasterKeyService {
    * @returns {Promise<string>} A promise that resolves to the encrypted blob in base64 format: Base64(iv || ciphertext).
    * @throws {Error} If encryption fails.
    */
-  encrypt(plaintext: string, masterKey: CryptoKey, aad: string): Promise<string>
+  // encrypt(plaintext: string, masterKey: CryptoKey, aad: string): Promise<string>
 
   /**
    * Decrypts a master-key-encrypted blob using AES-256-GCM.
@@ -94,7 +97,7 @@ export interface MasterKeyService {
    * @returns {Promise<string>} A promise that resolves to the decrypted plaintext.
    * @throws {Error} If decryption fails (wrong key, corrupted data, AAD mismatch, etc.).
    */
-  decrypt(encryptedBlob: string, masterKey: CryptoKey, aad: string): Promise<string>
+  // decrypt(encryptedBlob: string, masterKey: CryptoKey, aad: string): Promise<string>
 
   /**
    * Validates whether a blob appears to be a valid master-key-encrypted format.
