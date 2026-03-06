@@ -176,44 +176,4 @@ describe('round-trip lifecycle', () => {
     await masterKeyService.deleteKey()
     expect(await masterKeyService.hasKey()).toBe(false)
   })
-
-  // todo, update this and move to fieldKeyService.test.ts
-  /*
-  it('loaded key can encrypt and decrypt data', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
-
-    const plaintext = new TextEncoder().encode('hello master key')
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, loaded, plaintext)
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, loaded, ciphertext)
-
-    expect(new TextDecoder().decode(decrypted)).toBe('hello master key')
-  })
-    */
-
-  // todo, update this and move to fieldKeyService.test.ts
-  /*
-  it('two separate loads from the same stored key produce equivalent keys', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-
-    const key1 = await masterKeyService.loadKey(privateKey)
-    const key2 = await masterKeyService.loadKey(privateKey)
-
-    const plaintext = new TextEncoder().encode('consistency check')
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key1, plaintext)
-    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key2, ciphertext)
-
-    expect(new TextDecoder().decode(decrypted)).toBe('consistency check')
-  })
-  */
 })

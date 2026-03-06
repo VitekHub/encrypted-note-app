@@ -118,53 +118,6 @@ export const masterKeyService: MasterKeyService = {
   },
 
   /** @inheritdoc */
-  /*
-  async encrypt(plaintext: string, masterKey: CryptoKey, aad: string): Promise<string> {
-    try {
-      const iv = crypto.getRandomValues(new Uint8Array(ENCRYPTION_IV_LEN))
-      const plaintextBuffer = new TextEncoder().encode(plaintext)
-      const aadBuffer = new TextEncoder().encode(aad)
-
-      const ciphertext = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv, additionalData: aadBuffer },
-        masterKey,
-        plaintextBuffer
-      )
-
-      const result = new Uint8Array(iv.length + ciphertext.byteLength)
-      result.set(iv, 0)
-      result.set(new Uint8Array(ciphertext), iv.length)
-
-      return fromUint8Array(result)
-    } catch {
-      throw new Error('Failed to encrypt with master key')
-    }
-  },
-  */
-
-  /** @inheritdoc */
-  /*
-  async decrypt(encryptedBlob: string, masterKey: CryptoKey, aad: string): Promise<string> {
-    try {
-      const raw = toUint8Array(encryptedBlob)
-      const iv = raw.slice(0, ENCRYPTION_IV_LEN)
-      const ciphertext = raw.slice(ENCRYPTION_IV_LEN).buffer as ArrayBuffer
-      const aadBuffer = new TextEncoder().encode(aad)
-
-      const plainBuffer = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv, additionalData: aadBuffer },
-        masterKey,
-        ciphertext
-      )
-
-      return new TextDecoder().decode(plainBuffer)
-    } catch {
-      throw new Error('Failed to decrypt with master key. Wrong key or corrupted data.')
-    }
-  },
-  */
-
-  /** @inheritdoc */
   isEncrypted(blob: string): boolean {
     try {
       if (!blob || blob.length === 0) return false
