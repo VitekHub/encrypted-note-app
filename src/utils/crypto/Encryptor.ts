@@ -14,9 +14,9 @@ import { fromUint8Array, toUint8Array } from 'js-base64'
  * - Decryption fails (throws `Error`) on any tampering, wrong key, wrong AAD, etc.
  */
 export class Encryptor {
-  private readonly SALT_LEN: number
-  private readonly IV_LEN: number
-  private readonly ALGORITHM: string
+  private readonly saltLen: number
+  private readonly ivLen: number
+  private readonly algorithm: string
 
   constructor(
     options: {
@@ -25,9 +25,9 @@ export class Encryptor {
       algorithm?: string
     } = {}
   ) {
-    this.SALT_LEN = options.saltLen ?? 16
-    this.IV_LEN = options.ivLen ?? 12
-    this.ALGORITHM = options.algorithm ?? 'AES-GCM'
+    this.saltLen = options.saltLen ?? 16
+    this.ivLen = options.ivLen ?? 12
+    this.algorithm = options.algorithm ?? 'AES-GCM'
   }
 
   /**
@@ -36,7 +36,7 @@ export class Encryptor {
    * @returns A new random salt suitable for key derivation.
    */
   public getRandomSalt(): Uint8Array<ArrayBuffer> {
-    return crypto.getRandomValues(new Uint8Array(this.SALT_LEN))
+    return crypto.getRandomValues(new Uint8Array(this.saltLen))
   }
 
   /**
@@ -51,11 +51,11 @@ export class Encryptor {
     ciphertext: Uint8Array<ArrayBuffer>
   } {
     const bytes = toUint8Array(value)
-    const minBlobLen = this.SALT_LEN + this.IV_LEN + 1
+    const minBlobLen = this.saltLen + this.ivLen + 1
     if (bytes.length < minBlobLen) throw new Error('Invalid encrypted format')
 
-    const offsetIv = this.SALT_LEN
-    const offsetData = this.SALT_LEN + this.IV_LEN
+    const offsetIv = this.saltLen
+    const offsetData = this.saltLen + this.ivLen
     const salt = bytes.slice(0, offsetIv)
     const iv = bytes.slice(offsetIv, offsetData)
     const ciphertext = bytes.slice(offsetData)
@@ -117,10 +117,10 @@ export class Encryptor {
    * @throws {Error} If encryption fails (e.g. invalid key, algorithm mismatch)
    */
   public async encrypt(data: string, key: CryptoKey, salt: Uint8Array<ArrayBuffer>, aad: string): Promise<string> {
-    const iv = crypto.getRandomValues(new Uint8Array(this.IV_LEN))
+    const iv = crypto.getRandomValues(new Uint8Array(this.ivLen))
     const ciphertext = await crypto.subtle.encrypt(
       {
-        name: this.ALGORITHM,
+        name: this.algorithm,
         iv,
         additionalData: this.textToBuffer(aad),
       },
@@ -151,7 +151,7 @@ export class Encryptor {
   ): Promise<string> {
     const plainBuffer = await crypto.subtle.decrypt(
       {
-        name: this.ALGORITHM,
+        name: this.algorithm,
         iv,
         additionalData: this.textToBuffer(aad),
       },
