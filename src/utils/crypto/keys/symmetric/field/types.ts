@@ -19,12 +19,7 @@ export interface FieldKeyService {
    * @param aad - additional authenticated data bound to this encryption
    * @returns base64 string containing salt|iv|ciphertext
    */
-  encrypt(
-    plaintext: string,
-    masterKey: CryptoKey,
-    fieldId: string,
-    aad: string
-  ): Promise<string>
+  encrypt(plaintext: string, masterKey: CryptoKey, fieldId: string, aad: string): Promise<string>
 
   /**
    * Decrypt a blob produced by `encrypt` using the same master key and field
@@ -35,12 +30,7 @@ export interface FieldKeyService {
    * @param aad - same additional authenticated data used during encryption
    * @returns decrypted plaintext
    */
-  decrypt(
-    encryptedBlob: string,
-    masterKey: CryptoKey,
-    fieldId: string,
-    aad: string
-  ): Promise<string>
+  decrypt(encryptedBlob: string, masterKey: CryptoKey, fieldId: string, aad: string): Promise<string>
 
   /**
    * Returns true if `value` appears to be a valid encrypted blob.
