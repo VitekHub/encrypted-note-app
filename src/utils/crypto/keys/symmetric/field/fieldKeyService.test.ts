@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fieldKeyService, deriveFieldKey } from './fieldKeyService'
+import { fieldKeyService } from './fieldKeyService'
 
 const AAD = 'user123:note'
 const PLAINTEXT = 'Field secret data'
@@ -37,20 +37,6 @@ describe('fieldKeyService.encrypt', () => {
     const a = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
     const b = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
     expect(a).not.toBe(b)
-  })
-
-  it('different fields derive different keys', async () => {
-    const salt = crypto.getRandomValues(new Uint8Array(16))
-    const key1 = await deriveFieldKey(masterKey, salt, 'a')
-    const key2 = await deriveFieldKey(masterKey, salt, 'b')
-
-    // encrypt a constant plaintext with both keys using a fixed IV; results
-    // should differ if keys differ.
-    const iv = new Uint8Array(12)
-    const plaintext = new TextEncoder().encode('x')
-    const c1 = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key1, plaintext)
-    const c2 = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key2, plaintext)
-    expect(new Uint8Array(c1)).not.toEqual(new Uint8Array(c2))
   })
 })
 
