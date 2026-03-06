@@ -22,6 +22,18 @@ export interface MasterKeyService {
   generateKey(): Promise<CryptoKey>
 
   /**
+   * Converts an extractable AES-256-GCM master key into a non-extractable HKDF key
+   * for secure key derivation.
+   *
+   * The resulting key can only be used with `deriveKey` / `deriveBits`.
+   *
+   * @param generatedMasterKey - Extractable AES-GCM key from `generateKey()`
+   * @returns Non-extractable HKDF key (SHA-256)
+   * @throws If conversion fails or input key is invalid
+   */
+  convertToDerivable(generatedMasterKey: CryptoKey): Promise<CryptoKey>
+
+  /**
    * Persists the RSA-wrapped Master Key to IndexedDB storage.
    *
    * Wraps generatedMasterKey with raw RSA public key and stores it encoded in base64 format into storage.
@@ -64,37 +76,6 @@ export interface MasterKeyService {
    * @returns {Promise<void>} A promise that resolves when the key has been deleted.
    */
   deleteKey(): Promise<void>
-
-  /**
-   * Encrypts plaintext using the Master Key with AES-256-GCM.
-   *
-   * Generates a random 96-bit IV per encryption, encrypts the plaintext
-   * with the provided master key and additional authenticated data (AAD),
-   * and returns the result as a base64 blob containing both IV and ciphertext.
-   *
-   * @param {string} plaintext - The plaintext to encrypt.
-   * @param {CryptoKey} masterKey - The unwrapped AES-256-GCM master key.
-   * @param {string} aad - Additional authenticated data that binds the ciphertext
-   *        to a specific context (e.g., "userId:fieldName").
-   * @returns {Promise<string>} A promise that resolves to the encrypted blob in base64 format: Base64(iv || ciphertext).
-   * @throws {Error} If encryption fails.
-   */
-  encrypt(plaintext: string, masterKey: CryptoKey, aad: string): Promise<string>
-
-  /**
-   * Decrypts a master-key-encrypted blob using AES-256-GCM.
-   *
-   * Parses the IV and ciphertext from the base64 blob, then decrypts using
-   * the provided master key and AAD. Returns the original plaintext.
-   *
-   * @param {string} encryptedBlob - The encrypted blob in base64 format (as produced by `encrypt`).
-   * @param {CryptoKey} masterKey - The unwrapped AES-256-GCM master key.
-   * @param {string} aad - The additional authenticated data used during encryption.
-   *        Must match exactly or decryption will fail.
-   * @returns {Promise<string>} A promise that resolves to the decrypted plaintext.
-   * @throws {Error} If decryption fails (wrong key, corrupted data, AAD mismatch, etc.).
-   */
-  decrypt(encryptedBlob: string, masterKey: CryptoKey, aad: string): Promise<string>
 
   /**
    * Validates whether a blob appears to be a valid master-key-encrypted format.

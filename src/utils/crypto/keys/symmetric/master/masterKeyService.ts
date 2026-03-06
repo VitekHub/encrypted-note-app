@@ -45,12 +45,28 @@ export const masterKeyService: MasterKeyService = {
     try {
       return await crypto.subtle.generateKey(
         MASTER_KEY_ALGORITHM,
-        true, // extractable so we can wrap it
+        true, // extractable so we can wrap it or convert it to derivable
         ['encrypt', 'decrypt']
       )
     } catch {
       throw new Error('Failed to generate master key')
     }
+  },
+
+  /** @inheritdoc */
+  async convertToDerivable(generatedMasterKey: CryptoKey): Promise<CryptoKey> {
+    // Make the key derivable
+    const raw = await crypto.subtle.exportKey('raw', generatedMasterKey)
+    return crypto.subtle.importKey(
+      'raw',
+      raw,
+      {
+        name: 'HKDF',
+        hash: 'SHA-256',
+      }, // algorithm for the imported key
+      false, // non-extractable
+      ['deriveKey', 'deriveBits'] // allow derivation
+    )
   },
 
   /** @inheritdoc */
@@ -76,7 +92,7 @@ export const masterKeyService: MasterKeyService = {
     const wrappedMasterKey = toUint8Array(stored).buffer as ArrayBuffer
 
     try {
-      return await crypto.subtle.unwrapKey(
+      const unwrappedKey = await crypto.subtle.unwrapKey(
         'raw',
         wrappedMasterKey,
         rsaPrivateKey,
@@ -85,6 +101,7 @@ export const masterKeyService: MasterKeyService = {
         true, // extractable (for future re-wrapping if needed)
         ['encrypt', 'decrypt']
       )
+      return masterKeyService.convertToDerivable(unwrappedKey)
     } catch {
       throw new Error('Failed to unwrap master key. Private key may be incorrect.')
     }
@@ -98,49 +115,6 @@ export const masterKeyService: MasterKeyService = {
   /** @inheritdoc */
   async deleteKey(): Promise<void> {
     await cryptoKeyStorage.delete(WRAPPED_MASTER_KEY_NAME)
-  },
-
-  /** @inheritdoc */
-  async encrypt(plaintext: string, masterKey: CryptoKey, aad: string): Promise<string> {
-    try {
-      const iv = crypto.getRandomValues(new Uint8Array(ENCRYPTION_IV_LEN))
-      const plaintextBuffer = new TextEncoder().encode(plaintext)
-      const aadBuffer = new TextEncoder().encode(aad)
-
-      const ciphertext = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv, additionalData: aadBuffer },
-        masterKey,
-        plaintextBuffer
-      )
-
-      const result = new Uint8Array(iv.length + ciphertext.byteLength)
-      result.set(iv, 0)
-      result.set(new Uint8Array(ciphertext), iv.length)
-
-      return fromUint8Array(result)
-    } catch {
-      throw new Error('Failed to encrypt with master key')
-    }
-  },
-
-  /** @inheritdoc */
-  async decrypt(encryptedBlob: string, masterKey: CryptoKey, aad: string): Promise<string> {
-    try {
-      const raw = toUint8Array(encryptedBlob)
-      const iv = raw.slice(0, ENCRYPTION_IV_LEN)
-      const ciphertext = raw.slice(ENCRYPTION_IV_LEN).buffer as ArrayBuffer
-      const aadBuffer = new TextEncoder().encode(aad)
-
-      const plainBuffer = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv, additionalData: aadBuffer },
-        masterKey,
-        ciphertext
-      )
-
-      return new TextDecoder().decode(plainBuffer)
-    } catch {
-      throw new Error('Failed to decrypt with master key. Wrong key or corrupted data.')
-    }
   },
 
   /** @inheritdoc */

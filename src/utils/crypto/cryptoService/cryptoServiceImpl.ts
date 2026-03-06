@@ -1,6 +1,11 @@
 import { rsaKeyService } from '../keys/asymmetric/rsa'
 import { masterKeyService } from '../keys/symmetric/master'
+import { fieldKeyService } from '../keys/symmetric/field'
 import type { CryptoService } from './types'
+
+function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
+  return `${userId}:${fieldId}`
+}
 
 /**
  * Singleton instance of CryptoService.
@@ -13,7 +18,7 @@ export const cryptoService: CryptoService = {
     const masterKey = await masterKeyService.generateKey()
     await masterKeyService.storeKey(masterKey, rsaKeyPair.publicKey)
 
-    return masterKey
+    return masterKeyService.convertToDerivable(masterKey)
   },
 
   /** @inheritdoc */
@@ -26,6 +31,23 @@ export const cryptoService: CryptoService = {
   async isSetUp(): Promise<boolean> {
     const [hasRsaKeys, hasMasterKey] = await Promise.all([rsaKeyService.hasKeys(), masterKeyService.hasKey()])
     return hasRsaKeys && hasMasterKey
+  },
+
+  /** @inheritdoc */
+  async encrypt(data, masterKey, fieldId, userId) {
+    const aad = getAdditionalAuthenticatedData(userId, fieldId)
+    return await fieldKeyService.encrypt(data, masterKey, fieldId, aad)
+  },
+
+  /** @inheritdoc */
+  async decrypt(data, masterKey, fieldId, userId) {
+    const aad = getAdditionalAuthenticatedData(userId, fieldId)
+    return await fieldKeyService.decrypt(data, masterKey, fieldId, aad)
+  },
+
+  /** @inheritdoc */
+  isEncrypted(value: string): boolean {
+    return fieldKeyService.isEncrypted(value)
   },
 
   /** @inheritdoc */

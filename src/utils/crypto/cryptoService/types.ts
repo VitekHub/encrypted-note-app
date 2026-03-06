@@ -49,6 +49,32 @@ export interface CryptoService {
   isSetUp(): Promise<boolean>
 
   /**
+   * Encrypt plaintext using a field-specific key derived from the master key.
+   * @param data - data to encrypt
+   * @param masterKey - the AES-GCM master key held in RAM
+   * @param fieldId - unique identifier for the field (e.g. "note", "title")
+   * @param userId - unique identifier for the user (e.g. "user123")
+   * @param aad - additional authenticated data bound to this encryption
+   * @returns base64 string containing salt|iv|ciphertext
+   */
+  encrypt(data: string, masterKey: CryptoKey, fieldId: string, userId: string): Promise<string>
+
+  /**
+   * Decrypt a blob produced by `encrypt` using the same master key.
+   * @param data - encrypted base64 salt|iv|ciphertext
+   * @param masterKey - same master key used during encryption
+   * @param fieldId - same field identifier used during encryption
+   * @param userId - same user identifier used during encryption
+   * @returns decrypted plaintext
+   */
+  decrypt(data: string, masterKey: CryptoKey, fieldId: string, userId: string): Promise<string>
+
+  /**
+   * Returns true if `value` appears to be a valid encrypted blob.
+   */
+  isEncrypted(value: string): boolean
+
+  /**
    * Permanently deletes all cryptographic keys from storage.
    *
    * Called when the user requests "Drop Database" / full account wipe.
