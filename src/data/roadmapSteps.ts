@@ -92,45 +92,125 @@ export const roadmapSteps: RoadmapStep[] = [
       'Granular key control enables selective revocation or re-encryption of individual fields.',
     ],
     dangers: [
-      'If migration stops here, the database contains a mix of three encryption schemes (password-only, master-key-only, field-specific), increasing complexity and risk of bugs.',
-      'Losing or mismatching a field-specific salt makes future decryption impossible for that field.',
-    ],
-  },
-  {
-    title: 'Full Migration & Cleanup',
-    goal: 'Re-encrypt all existing records from the old scheme(s) to the new field-specific key pipeline and remove obsolete artifacts.',
-    flow: [
-      'Iterate over every stored record.',
-      'Decrypt using the appropriate legacy method (password-only or master-key).',
-      'Derive the new field-specific key from the master key and re-encrypt the field.',
-      'Replace the old ciphertext with the new one and record the field-salt.',
-      'After all rows are processed, delete the old password-derived-only ciphertexts and purge any obsolete artifacts (like legacy salts).',
-    ],
-    securityGain: [
-      'All data now resides exclusively under the strongest tier: field-specific keys derived from a random master key.',
-      'Legacy weak encryption paths are eliminated, removing the weakest link in the chain.',
-    ],
-    dangers: [
-      'An interruption leaves a partially migrated dataset, creating a security hole where some rows remain vulnerable.',
-      'A buggy migration script could corrupt data or cause duplicate entries, leading to potential data loss.',
+      'Without rotation, security is permanently capped at the weakest password ever used + the RSA key generated on first setup.',
+      'No forward secrecy — single master-key compromise (today or in 10 years) decrypts all historical and future data.',
     ],
   },
   {
     title: 'Key-Rotation & Maintenance Toolkit',
-    goal: 'Provide utilities to rotate the password-derived key, RSA key pair, master key, and field-specific keys without downtime.',
+    goal: 'Provide utilities to rotate the password-derived key and RSA key pair without downtime.',
     flow: [
-      'Password rotation: prompt user for a new password, re-encrypt the RSA private key with the new password-derived key.',
+      'Password rotation: prompt user for a new password, re-encrypt the existing RSA private key with the new password-derived key.',
       'RSA rotation: generate a new RSA pair, re-wrap the existing master key with the new public key, replace stored public key.',
-      'Master-key rotation: generate a fresh master key, wrap it with the current RSA public key, optionally re-derive field-specific keys.',
-      'Field-key rotation (optional): re-derive per-field keys from the new master key and re-encrypt affected fields.',
+      "Do not add Master-key rotation as that would require re-encrypting all of the user's data.",
     ],
     securityGain: [
       'Limits the exposure window of any single key, complying with best-practice key-lifecycle policies.',
-      'Allows rapid response to suspected key compromise without needing a full data dump.',
+      'Allows rapid response to suspected RSA key compromise without needing a full data dump.',
     ],
     dangers: [
-      'Missing rotation procedures forces ad-hoc manual updates later, increasing the chance of errors and data loss.',
-      'Improperly sequenced rotations (e.g., rotating RSA before re-wrapping the master key) could render the master key inaccessible.',
+      'Without a brute-force protection, unlimited offline password guessing remains possible.',
+      'Even frequent password rotation becomes almost useless against automated attacks on a stolen device.',
+    ],
+  },
+  {
+    title: 'Add Brute-Force & Wrong-Password Protection',
+    goal: 'Prevent unlimited offline password guessing against Argon2id-derived keys.',
+    flow: [
+      'Implement exponential backoff (e.g. 1s → 2s → 4s → 30s → 5min lock) on failed unlock attempts',
+      'Add configurable max attempts before longer cooldown (e.g. 10 fails → 1 hour lock)',
+      'Persist failed attempt counter in IndexedDB (encrypted or HMAC-protected)',
+    ],
+    securityGain: [
+      'Makes practical offline attacks orders of magnitude slower/harder even with stolen device',
+      'Complements Argon2id computational cost with time-based throttling',
+    ],
+    dangers: [
+      'Without secure session and memory management, field keys and master key stay in memory after lock.',
+      'An attacker with brief post-lock access can still decrypt everything, making rotation and brute-force protection far less effective.',
+    ],
+  },
+  {
+    title: 'Secure Session & Memory Management',
+    goal: 'Ensure keys and sensitive data are cleared from memory when no longer needed.',
+    flow: [
+      'Implement automatic lock after idle timeout (5-15 min configurable)',
+      'Clear masterKey, fieldKeys Map, passwordInput ref on lock / timeout / visibilitychange / beforeunload',
+      'Use secure zeroing patterns where possible (though limited in JS — at least null references + gc encouragement)',
+    ],
+    securityGain: [
+      'Prevents shoulder-surfing, evil-maid and post-lock memory inspection attacks',
+      'Reduces window during which master & field keys live in RAM',
+    ],
+    dangers: [
+      'Without Argon2id strengthening, weak password-derived keys remain relatively cheap to brute-force long-term.',
+      'Even with rotation and session cleanup, security is still capped by outdated KDF parameters.',
+    ],
+  },
+  {
+    title: 'Strengthen Argon2id Parameters & Calibration',
+    goal: 'Bring password-to-key derivation closer to 2026 OWASP / NIST recommendations.',
+    flow: [
+      'Increase iterations (target 0.8-2 seconds on low-end mobile devices)',
+      'Consider raising memory to 128-194 MiB if UX allows',
+      'Add optional calibration function or documented tuning guide for different devices',
+    ],
+    securityGain: [
+      'Significantly raises cost of brute-force / dictionary attacks',
+      'Makes password rotation more effective (stronger wrapper for RSA private key)',
+    ],
+    dangers: [
+      'Without RSA upgrade, the 2048-bit RSA key remains the long-term weak link.',
+      'Even strong password-derived keys wrap an aging asymmetric algorithm that NIST/BSI recommend replacing.',
+    ],
+  },
+  {
+    title: 'Upgrade RSA Key Size & Rotation Best Practices',
+    goal: 'Move beyond aging RSA-2048 toward future-proof key wrapping.',
+    flow: [
+      'During RSA rotation, generate 3072 or 4096-bit keys instead of 2048',
+      'Add UI warning / migration path for users with old 2048-bit wrapped master keys',
+      'Ensure old private key is securely deleted after successful rotation test',
+    ],
+    securityGain: [
+      'Raises security level from ~112 bits to 128+ bits (better aligned with AES-256)',
+      'Follows NIST/BSI/ANSSI guidance for long-term protection past 2030',
+    ],
+    dangers: [
+      'Without versioning, future crypto upgrades (stronger parameters, new algorithms, post-quantum) become extremely risky or impossible without breaking old data or forcing full re-encryption.',
+    ],
+  },
+  {
+    title: 'Add Basic Key & Format Versioning',
+    goal: 'Prepare for future crypto changes without forcing full re-encryption.',
+    flow: [
+      'Embed version tag in AAD (e.g. "ciphernote-v2")',
+      'Add version prefix or metadata field when storing wrapped master key and encrypted notes',
+      'Handle version detection during decrypt / rotation flows',
+    ],
+    securityGain: [
+      'Enables safe future upgrades (stronger Argon2id, new algorithms, etc.)',
+      'Avoids silent failures when old vs new formats mix',
+    ],
+    dangers: [
+      'With the broken AAD binding, the entire cryptographic protocol remains fundamentally flawed.',
+      'Encrypted notes can still be silently swapped between users even after all rotations and upgrades.',
+    ],
+  },
+  {
+    title: 'Fix Broken AAD Binding',
+    goal: 'Make AAD actually bind encrypted blobs to the correct user and field to prevent substitution / mix-up attacks.',
+    flow: [
+      'Replace hardcoded "TODO:note" with proper per-user + per-field AAD construction (e.g. userId + fieldId + version tag)',
+      'Update all encryption calls in useEncryptedNote / fieldKeyService / passwordDerivedService to use real AAD',
+      'Add migration step or version check so old blobs with broken AAD can still be read (graceful fallback during transition)',
+    ],
+    securityGain: [
+      'Prevents silent blob-swapping attacks between users (critical for any future multi-user or cloud-sync feature)',
+      'Restores intended authenticity guarantees of AES-GCM and makes all previous rotation work actually meaningful',
+    ],
+    dangers: [
+      // This is the last step → no "next step" danger
     ],
   },
 ]
