@@ -40,6 +40,8 @@
       @confirm="handleDrop"
       @cancel="showDropConfirm = false"
     />
+
+    <NotificationContainer />
   </div>
 </template>
 
@@ -54,6 +56,7 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import AppInfo from './AppInfo.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import Settings from './Settings.vue'
+import NotificationContainer from './NotificationContainer.vue'
 
 const STORAGE_KEY = 'app-note'
 
@@ -94,7 +97,7 @@ async function handleUnlock() {
       }
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to unlock'
+    error.value = e instanceof Error && e.message ? e.message : 'Failed to unlock'
   } finally {
     loading.value = false
   }

@@ -5,7 +5,7 @@
     <div class="setting-section">
       <h3>Password Management</h3>
       <p>Change your master password. This re-encrypts your RSA private key with the new password.</p>
-      <button class="btn-primary" @click="showChangePassword = true">Change Password</button>
+      <button class="btn-primary" @click="openChangePasswordDialog">Change Password</button>
     </div>
 
     <div class="setting-section suspicious">
@@ -14,7 +14,7 @@
         Recommended if your password was leaked, device was stolen, or suspicious activity detected.
       </p>
       <p>This generates a new RSA key pair and re-wraps your master key. Your data remains accessible.</p>
-      <button class="btn-danger" @click="showRotateRsa = true">Perform Security Key Rotation</button>
+      <button class="btn-danger" @click="openRotateRsaDialog">Perform Security Key Rotation</button>
     </div>
 
     <!-- Change Password Dialog -->
@@ -24,7 +24,7 @@
         <form @submit.prevent="handleChangePassword">
           <label>
             Current Password:
-            <input v-model="oldPassword" type="password" required />
+            <input ref="oldPasswordInput" v-model="oldPassword" type="password" required />
           </label>
           <label>
             New Password:
@@ -51,7 +51,7 @@
         <form @submit.prevent="handleRotateRsa">
           <label>
             Password:
-            <input v-model="rsaPassword" type="password" required />
+            <input ref="rsaPasswordInput" v-model="rsaPassword" type="password" required />
           </label>
           <div class="dialog-actions">
             <button type="button" @click="closeDialogs">Cancel</button>
@@ -65,12 +65,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { cryptoService } from '../utils/crypto/cryptoService'
+import { useNotification } from '../composables/useNotification'
 
 const emit = defineEmits<{
   close: []
 }>()
+
+const { showNotification } = useNotification()
 
 const showChangePassword = ref(false)
 const showRotateRsa = ref(false)
@@ -82,6 +85,9 @@ const newPassword = ref('')
 const confirmPassword = ref('')
 const rsaPassword = ref('')
 
+const oldPasswordInput = ref<HTMLInputElement>()
+const rsaPasswordInput = ref<HTMLInputElement>()
+
 function closeDialogs() {
   showChangePassword.value = false
   showRotateRsa.value = false
@@ -92,6 +98,18 @@ function closeDialogs() {
   confirmPassword.value = ''
   rsaPassword.value = ''
   emit('close')
+}
+
+async function openChangePasswordDialog() {
+  showChangePassword.value = true
+  await nextTick()
+  oldPasswordInput.value?.focus()
+}
+
+async function openRotateRsaDialog() {
+  showRotateRsa.value = true
+  await nextTick()
+  rsaPasswordInput.value?.focus()
 }
 
 async function handleChangePassword() {
@@ -106,9 +124,9 @@ async function handleChangePassword() {
   try {
     await cryptoService.updatePassword(oldPassword.value, newPassword.value)
     closeDialogs()
-    alert('Password changed successfully!')
+    showNotification('Password changed successfully!', 'success')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to change password'
+    error.value = err instanceof Error && err.message ? err.message : 'Failed to change password'
   } finally {
     loading.value = false
   }
@@ -121,9 +139,9 @@ async function handleRotateRsa() {
   try {
     await cryptoService.rotateRsaKeys(rsaPassword.value)
     closeDialogs()
-    alert('RSA keys rotated successfully!')
+    showNotification('RSA keys rotated successfully!', 'success')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to rotate RSA keys'
+    error.value = err instanceof Error && err.message ? err.message : 'Failed to rotate RSA keys'
   } finally {
     loading.value = false
   }
