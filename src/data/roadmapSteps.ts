@@ -97,7 +97,7 @@ export const roadmapSteps: RoadmapStep[] = [
     ],
   },
   {
-    title: 'Key-Rotation & Maintenance Toolkit',
+    title: 'Key-Rotation',
     goal: 'Provide utilities to rotate the password-derived key and RSA key pair without downtime.',
     flow: [
       'Password rotation: prompt user for a new password, re-encrypt the existing RSA private key with the new password-derived key.',

@@ -20,6 +20,17 @@ async function generateRsaKeyPair(): Promise<CryptoKeyPair> {
   )
 }
 
+async function loadMasterKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey> {
+  const storedMasterKey = await masterKeyService.loadKey()
+  const unwrappedMasterKey = await masterKeyService.unwrapKey(storedMasterKey, rsaPrivateKey)
+  return await masterKeyService.convertToDerivable(unwrappedMasterKey)
+}
+
+async function storeMasterKey(masterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<void> {
+  const wrappedMasterKey = await masterKeyService.wrapKey(masterKey, rsaPublicKey)
+  await masterKeyService.storeKey(wrappedMasterKey)
+}
+
 beforeEach(() => {
   store.clear()
 })
@@ -63,14 +74,14 @@ describe('storeKey', () => {
   it('makes hasKey return true after storing', async () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
     expect(await masterKeyService.hasKey()).toBe(true)
   })
 
   it('stores the value under the expected storage key', async () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
     expect(store.has(WRAPPED_MASTER_KEY_NAME)).toBe(true)
   })
 
@@ -78,11 +89,11 @@ describe('storeKey', () => {
     const { publicKey } = await generateRsaKeyPair()
 
     const first = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(first, publicKey)
+    await storeMasterKey(first, publicKey)
     const storedFirst = store.get(WRAPPED_MASTER_KEY_NAME)
 
     const second = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(second, publicKey)
+    await storeMasterKey(second, publicKey)
     const storedSecond = store.get(WRAPPED_MASTER_KEY_NAME)
 
     expect(storedFirst).not.toBe(storedSecond)
@@ -97,7 +108,7 @@ describe('hasKey', () => {
   it('returns true after a wrapped key is stored', async () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
     expect(await masterKeyService.hasKey()).toBe(true)
   })
 })
@@ -106,8 +117,8 @@ describe('loadKey', () => {
   it('returns a CryptoKey with type secret and correct usages', async () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    const loaded = await masterKeyService.loadKey(privateKey)
+    await storeMasterKey(masterKey, publicKey)
+    const loaded = await loadMasterKey(privateKey)
     expect(loaded.type).toBe('secret')
     expect(loaded.usages).toContain('deriveKey')
     expect(loaded.usages).toContain('deriveBits')
@@ -115,15 +126,15 @@ describe('loadKey', () => {
 
   it('throws when no key exists in storage', async () => {
     const { privateKey } = await generateRsaKeyPair()
-    await expect(masterKeyService.loadKey(privateKey)).rejects.toThrow()
+    await expect(loadMasterKey(privateKey)).rejects.toThrow()
   })
 
   it('throws when the wrong private key is used', async () => {
     const { publicKey } = await generateRsaKeyPair()
     const { privateKey: wrongPrivateKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
-    await expect(masterKeyService.loadKey(wrongPrivateKey)).rejects.toThrow()
+    await storeMasterKey(masterKey, publicKey)
+    await expect(loadMasterKey(wrongPrivateKey)).rejects.toThrow()
   })
 })
 
@@ -131,7 +142,7 @@ describe('deleteKey', () => {
   it('makes hasKey return false after deleting', async () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
     await masterKeyService.deleteKey()
     expect(await masterKeyService.hasKey()).toBe(false)
   })
@@ -139,9 +150,9 @@ describe('deleteKey', () => {
   it('makes loadKey throw after deleting', async () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
     await masterKeyService.deleteKey()
-    await expect(masterKeyService.loadKey(privateKey)).rejects.toThrow()
+    await expect(loadMasterKey(privateKey)).rejects.toThrow()
   })
 })
 
@@ -164,11 +175,11 @@ describe('round-trip lifecycle', () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
 
     const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, publicKey)
+    await storeMasterKey(masterKey, publicKey)
 
     expect(await masterKeyService.hasKey()).toBe(true)
 
-    const loaded = await masterKeyService.loadKey(privateKey)
+    const loaded = await loadMasterKey(privateKey)
 
     expect(loaded.type).toBe('secret')
     expect(loaded.algorithm).toMatchObject({ name: 'HKDF' })

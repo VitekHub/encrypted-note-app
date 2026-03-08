@@ -30,6 +30,8 @@
       @lock="handleLock"
     />
 
+    <Settings />
+
     <ConfirmDialog
       v-if="showDropConfirm"
       title="Drop Database"
@@ -51,6 +53,7 @@ import NoteArea from './NoteArea.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import AppInfo from './AppInfo.vue'
 import ThemeToggle from './ThemeToggle.vue'
+import Settings from './Settings.vue'
 
 const STORAGE_KEY = 'app-note'
 

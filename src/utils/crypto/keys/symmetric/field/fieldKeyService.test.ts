@@ -13,6 +13,17 @@ vi.mock('../../../keyStorage', async () => {
   return { cryptoKeyStorage: mockCryptoKeyStorage }
 })
 
+async function loadMasterKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey> {
+  const storedMasterKey = await masterKeyService.loadKey()
+  const unwrappedMasterKey = await masterKeyService.unwrapKey(storedMasterKey, rsaPrivateKey)
+  return await masterKeyService.convertToDerivable(unwrappedMasterKey)
+}
+
+async function storeMasterKey(masterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<void> {
+  const wrappedMasterKey = await masterKeyService.wrapKey(masterKey, rsaPublicKey)
+  await masterKeyService.storeKey(wrappedMasterKey)
+}
+
 let generatedMasterKey: CryptoKey
 let masterKey: CryptoKey
 
@@ -86,9 +97,9 @@ describe('fieldKeyService.decrypt (round-trip)', () => {
 
   it('two separate loads from the same stored key produce equivalent keys', async () => {
     const { publicKey, privateKey } = await rsaKeyService.generateKeys()
-    await masterKeyService.storeKey(generatedMasterKey, publicKey)
-    const masterKey1 = await masterKeyService.loadKey(privateKey)
-    const masterKey2 = await masterKeyService.loadKey(privateKey)
+    await storeMasterKey(generatedMasterKey, publicKey)
+    const masterKey1 = await loadMasterKey(privateKey)
+    const masterKey2 = await loadMasterKey(privateKey)
     const plaintext2 = 'consistency check'
     const ciphertext = await fieldKeyService.encrypt(plaintext2, masterKey1, FIELD, AAD)
     const decrypted = await fieldKeyService.decrypt(ciphertext, masterKey2, FIELD, AAD)

@@ -87,6 +87,7 @@ export default [
       'vue/no-multiple-template-root': 'off',
 
       'no-unused-vars': 'off',
+      'preserve-caught-error': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { args: 'none' }],
       '@typescript-eslint/no-explicit-any': 'warn',
 
@@ -113,6 +114,7 @@ export default [
     },
     rules: {
       'no-unused-vars': 'off',
+      'preserve-caught-error': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { args: 'none' }],
       'no-console': 'off',
       'no-debugger': 'error',

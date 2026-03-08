@@ -22,45 +22,60 @@ export interface MasterKeyService {
   generateKey(): Promise<CryptoKey>
 
   /**
+   * Wraps unwrapped Master key with raw RSA public key.
+   *
+   * @param {CryptoKey} unwrappedMasterKey - The raw Master Key object.
+   * @param {CryptoKey} rsaPublicKey - RSA public key (from RSA-2048 keypair) used to wrap the Master Key.
+   *        Must have RSA-OAEP usage enabled.
+   * @returns {Promise<string>} A promise that resolves to the base64 wrapped Master key.
+   * @throws {Error} If wrap operation fails.
+   */
+  wrapKey(unwrappedMasterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<string>
+
+  /**
+   * Persists the RSA-wrapped Master Key to storage.
+   *
+   * @param {string} wrappedMasterKeyBase64 - The base64 wrapped Master key
+   * @returns {Promise<void>} A promise that resolves when the key has been successfully stored.
+   */
+  storeKey(wrappedMasterKeyBase64: string): Promise<void>
+
+  /**
+   * Retrieves the wrapped Master Key from storage
+   *
+   * Loads the previously stored RSA-wrapped Master Key as base64 string.
+   *
+   * @returns {Promise<string>} A promise that resolves to the unwrapped base64 Master Key.
+   * @throws {Error} If:
+   *         - No Master Key has been stored yet (triggering first-time setup)
+   *         - Storage retrieval fails
+   */
+  loadKey(): Promise<string>
+
+  /**
+   * Unwrapps Master Key into a raw key.
+   *
+   * Decrypts RSA-wrapped Master Key back to its original CryptoKey form, making it usable for field/data encryption and decryption operations.
+   *
+   * @param {string} wrappedMasterKey - The wrapped base64 Master key.
+   * @param {CryptoKey} rsaPrivateKey - The RSA private key corresponding to the public key
+   *        that was used to wrap the Master Key. Must have RSA-OAEP usage enabled.
+   * @returns {Promise<CryptoKey>} A promise that resolves to the unwrapped Master Key CryptoKey object.
+   * @throws {Error} If unwrapping fails
+   */
+  unwrapKey(wrappedMasterKey: string, rsaPrivateKey: CryptoKey): Promise<CryptoKey>
+
+  /**
    * Converts an extractable AES-256-GCM master key into a non-extractable HKDF key
    * for secure key derivation.
    *
    * The resulting key can only be used with `deriveKey` / `deriveBits`.
    *
-   * @param generatedMasterKey - Extractable AES-GCM key from `generateKey()`
-   * @returns Non-extractable HKDF key (SHA-256)
+   * @param unwrappedMasterKey - Extractable unwrapped master key
+   * @returns {Promise<CryptoKey>} A promise that resolves to Non-extractable HKDF key (SHA-256)
    * @throws If conversion fails or input key is invalid
    */
-  convertToDerivable(generatedMasterKey: CryptoKey): Promise<CryptoKey>
-
-  /**
-   * Persists the RSA-wrapped Master Key to IndexedDB storage.
-   *
-   * Wraps generatedMasterKey with raw RSA public key and stores it encoded in base64 format into storage.
-   *
-   * @param {CryptoKey} generatedMasterKey - The raw Master Key object.
-   * @param {CryptoKey} rsaPublicKey - RSA public key (from RSA-2048 keypair) used to wrap the Master Key.
-   *        Must have RSA-OAEP usage enabled.
-   * @returns {Promise<void>} A promise that resolves when the key has been successfully stored.
-   * @throws {Error} If storage operation fails.
-   */
-  storeKey(generatedMasterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<void>
-
-  /**
-   * Retrieves the wrapped Master Key from storage and unwrapps it into a raw key.
-   *
-   * Loads the previously stored RSA-wrapped Master Key and decrypts it back to
-   * its original CryptoKey form, making it usable for field/data encryption and decryption operations.
-   *
-   * @param {CryptoKey} rsaPrivateKey - The RSA private key corresponding to the public key
-   *        that was used to wrap the Master Key. Must have RSA-OAEP usage enabled.
-   * @returns {Promise<CryptoKey>} A promise that resolves to the unwrapped Master Key CryptoKey object.
-   * @throws {Error} If:
-   *         - No Master Key has been stored yet (triggering first-time setup)
-   *         - Storage retrieval fails
-   *         - Unwrapping fails
-   */
-  loadKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey>
+  convertToDerivable(unwrappedMasterKey: CryptoKey): Promise<CryptoKey>
 
   /**
    * Checks whether a Master Key has been generated and stored.

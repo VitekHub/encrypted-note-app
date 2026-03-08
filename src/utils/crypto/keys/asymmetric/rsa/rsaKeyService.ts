@@ -1,5 +1,6 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
 import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
+import { masterKeyService } from '../../../keys/symmetric/master'
 import { cryptoKeyStorage } from '../../../keyStorage'
 import type { RsaKeyService } from './types'
 
@@ -9,8 +10,14 @@ const RSA_PUBLIC_KEY_NAME = 'rsa_public_key_spki'
 /** Key name under which the encrypted RSA private key is stored */
 const RSA_PRIVATE_KEY_ENCRYPTED_NAME = 'rsa_private_key_encrypted'
 
+/** Key name under which the RSA key version is stored */
+const RSA_KEY_VERSION_NAME = 'rsa_key_version'
+
 /** AAD used when encrypting the RSA private key with encryptField() */
 const RSA_PRIVATE_KEY_AAD = 'rsa_private_key_wrapper_v1'
+
+/** Current RSA key version */
+const RSA_KEY_VERSION = 'rsa_v1'
 
 /** RSA-OAEP algorithm configuration (2048-bit recommended for key wrapping) */
 const RSA_ALGORITHM = {
@@ -45,6 +52,7 @@ export const rsaKeyService: RsaKeyService = {
     await Promise.all([
       cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, publicKeyBase64),
       cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, encryptedPrivateKey),
+      cryptoKeyStorage.set(RSA_KEY_VERSION_NAME, RSA_KEY_VERSION),
     ])
   },
 
@@ -104,5 +112,44 @@ export const rsaKeyService: RsaKeyService = {
     const reEncrypted = await passwordDerivedService.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
 
     await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, reEncrypted)
+  },
+
+  /** @inheritdoc */
+  async rotateKeys(password: string): Promise<void> {
+    // Backup old keys
+    const oldEncryptedPrivate = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
+    const oldPublic = await cryptoKeyStorage.get(RSA_PUBLIC_KEY_NAME)
+    const oldWrappedMaster = await masterKeyService.loadKey()
+
+    if (!oldEncryptedPrivate || !oldPublic || !oldWrappedMaster) {
+      throw new Error('Missing old keys for rotation')
+    }
+
+    try {
+      const oldPrivateKey = await rsaKeyService.loadPrivateKey(password)
+      const oldMasterKey = await masterKeyService.unwrapKey(oldWrappedMaster, oldPrivateKey)
+      const newKeyPair = await rsaKeyService.generateKeys()
+
+      // Re-wrap master key with new public key and store keys
+      const newWrappedMasterKey = await masterKeyService.wrapKey(oldMasterKey, newKeyPair.publicKey)
+      await masterKeyService.storeKey(newWrappedMasterKey)
+      await rsaKeyService.storeKeys(newKeyPair, password)
+
+      // Test: load new private key and unwrap master key
+      const newPrivateKey = await rsaKeyService.loadPrivateKey(password)
+      const loadedKey = await masterKeyService.loadKey()
+      await masterKeyService.unwrapKey(loadedKey, newPrivateKey) // Test unwrap
+
+      // Success: delete backups (not needed since we overwrote)
+      // But to be safe, we can clear any temp if added
+    } catch (error) {
+      // Rollback: restore old keys
+      await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, oldEncryptedPrivate)
+      await cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, oldPublic)
+      await masterKeyService.storeKey(oldWrappedMaster)
+      throw new Error(
+        `RSA key rotation failed: ${error instanceof Error && error.message ? error.message : 'Unknown error'}`
+      )
+    }
   },
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { rsaKeyService } from './rsaKeyService'
+const { masterKeyService } = await import('../../../keys/symmetric/master')
 import { store } from '../../../testUtils'
 
 vi.mock('../../../keyStorage', async () => {
@@ -9,6 +10,18 @@ vi.mock('../../../keyStorage', async () => {
 
 const PASSWORD = 'test-password-rsa'
 const NEW_PASSWORD = 'new-password-rsa'
+
+// helper that sets up RSA keys + a wrapped master key under the same password
+async function prepareKeysWithMaster() {
+  const rsaPair = await rsaKeyService.generateKeys()
+  await rsaKeyService.storeKeys(rsaPair, PASSWORD)
+
+  // generate a temporary master key and wrap it with the current public key
+  const generatedMasterKey = await masterKeyService.generateKey()
+  // use masterKeyService directly to persist the wrapped master key
+  const wrappedMasterKey = await masterKeyService.wrapKey(generatedMasterKey, rsaPair.publicKey)
+  await masterKeyService.storeKey(wrappedMasterKey)
+}
 
 beforeEach(() => {
   store.clear()
@@ -168,5 +181,57 @@ describe('round-trip lifecycle', () => {
     expect(key.type).toBe('private')
 
     await expect(rsaKeyService.loadPrivateKey(PASSWORD)).rejects.toThrow()
+  })
+})
+
+// tests for new rotateRsaKeys functionality
+
+describe('rotateRsaKeys', () => {
+  it('creates a new key pair and leaves master key intact', async () => {
+    await prepareKeysWithMaster()
+
+    const originalPublic = store.get('rsa_public_key_spki')!
+    const originalWrapped = store.get('wrapped_master_key')!
+    const oldPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
+    const originalUnwrapped = await masterKeyService.unwrapKey(originalWrapped, oldPrivate)
+
+    await rsaKeyService.rotateKeys(PASSWORD)
+
+    expect(await rsaKeyService.hasKeys()).toBe(true)
+
+    const newPublic = store.get('rsa_public_key_spki')!
+    expect(newPublic).not.toBe(originalPublic)
+
+    const newPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
+    // wrapping using the new private key should yield a different blob
+    const wrapped = await masterKeyService.loadKey()
+    const unwrapped = await masterKeyService.unwrapKey(wrapped, newPrivate)
+
+    expect(wrapped).not.toBe(originalWrapped)
+    expect(unwrapped.type).toBe('secret')
+
+    // unwrapped master key should not have changed (same underlying key)
+    const originalUnwrappedRaw = await crypto.subtle.exportKey('raw', originalUnwrapped)
+    const unwrappedRaw = await crypto.subtle.exportKey('raw', unwrapped)
+    expect(new Uint8Array(originalUnwrappedRaw)).toEqual(new Uint8Array(unwrappedRaw))
+  })
+
+  it('rolls back storage when re-wrapping fails', async () => {
+    await prepareKeysWithMaster()
+    const originalPub = store.get('rsa_public_key_spki')!
+    const originalPriv = store.get('rsa_private_key_encrypted')!
+    const originalWrapped = store.get('wrapped_master_key')!
+
+    const spy = vi.spyOn(masterKeyService, 'wrapKey').mockImplementation(() => {
+      throw new Error('simulated failure')
+    })
+
+    await expect(rsaKeyService.rotateKeys(PASSWORD)).rejects.toThrow(/RSA key rotation failed/)
+
+    expect(store.get('rsa_public_key_spki')).toBe(originalPub)
+    expect(store.get('rsa_private_key_encrypted')).toBe(originalPriv)
+    expect(store.get('wrapped_master_key')).toBe(originalWrapped)
+
+    spy.mockRestore()
   })
 })

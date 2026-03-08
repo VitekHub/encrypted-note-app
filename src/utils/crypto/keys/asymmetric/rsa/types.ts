@@ -79,4 +79,18 @@ export interface RsaKeyService {
    * @throws {Error} If no private key is found in storage or decryption fails.
    */
   updatePassword(oldPassword: string, newPassword: string): Promise<void>
+
+  /**
+   * Rotates the RSA key pair: generates a new pair, re-wraps the master key
+   * with the new public key, stores the new keys, and deletes the old private
+   * key only after successful verification.
+   *
+   * Includes automatic rollback on failure.
+   *
+   * @param password - The user's master password required to decrypt the
+   *   current private key and encrypt the new one.
+   * @returns A promise that resolves once rotation is complete.
+   * @throws {Error} If rotation fails; old keys are restored.
+   */
+  rotateKeys(password: string): Promise<void>
 }

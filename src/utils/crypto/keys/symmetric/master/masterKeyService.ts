@@ -31,11 +31,14 @@ const MIN_ENCRYPTED_BLOB_LEN = ENCRYPTION_IV_LEN
  * // Check if setup is complete
  * if (await masterKeyService.hasKey()) {
  *   // Load and unwrap during unlock flow
- *   const masterKey = await masterKeyService.loadKey(rsaPrivateKey);
+ *   const storedMasterKey = await masterKeyService.loadKey()
+ *   const unwrappedMasterKey = await masterKeyService.unwrapKey(storedMasterKey, rsaPrivateKey)
+ *   const masterKey = await masterKeyService.convertToDerivable(unwrappedMasterKey)
  * } else {
  *   // Generate during initial setup
  *   const newKey = await masterKeyService.generateKey();
- *   await masterKeyService.storeKey(newKey, rsaPublicKey);
+ *   const wrappedMasterKey = await masterKeyService.wrapKey(newKey, rsaPublicKey)
+ *   await masterKeyService.storeKey(wrappedMasterKey)
  * }
  * ```
  */
@@ -54,9 +57,54 @@ export const masterKeyService: MasterKeyService = {
   },
 
   /** @inheritdoc */
-  async convertToDerivable(generatedMasterKey: CryptoKey): Promise<CryptoKey> {
+  async wrapKey(unwrappedMasterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<string> {
+    try {
+      const wrappedMasterKey = await crypto.subtle.wrapKey(
+        'raw', // AES keys are exported as raw bytes
+        unwrappedMasterKey,
+        rsaPublicKey,
+        RSA_WRAP_ALGORITHM
+      )
+      const wrappedMasterKeyBase64 = fromUint8Array(new Uint8Array(wrappedMasterKey))
+      return wrappedMasterKeyBase64
+    } catch {
+      throw new Error('Failed to wrap master key')
+    }
+  },
+
+  /** @inheritdoc */
+  async storeKey(wrappedMasterKeyBase64: string): Promise<void> {
+    await cryptoKeyStorage.set(WRAPPED_MASTER_KEY_NAME, wrappedMasterKeyBase64)
+  },
+
+  /** @inheritdoc */
+  async loadKey(): Promise<string> {
+    const wrappedMasterKey = await cryptoKeyStorage.get(WRAPPED_MASTER_KEY_NAME)
+    if (!wrappedMasterKey) throw new Error('Wrapped Master key not found in storage')
+    return wrappedMasterKey
+  },
+
+  /** @inheritdoc */
+  async unwrapKey(wrappedMasterKey: string, rsaPrivateKey: CryptoKey): Promise<CryptoKey> {
+    try {
+      return crypto.subtle.unwrapKey(
+        'raw',
+        toUint8Array(wrappedMasterKey).buffer as ArrayBuffer,
+        rsaPrivateKey,
+        RSA_WRAP_ALGORITHM,
+        MASTER_KEY_ALGORITHM,
+        true, // extractable (for future re-wrapping if needed)
+        ['encrypt', 'decrypt']
+      )
+    } catch {
+      throw new Error('Failed to unwrap master key. Private key may be incorrect.')
+    }
+  },
+
+  /** @inheritdoc */
+  async convertToDerivable(unwrappedMasterKey: CryptoKey): Promise<CryptoKey> {
     // Make the key derivable
-    const raw = await crypto.subtle.exportKey('raw', generatedMasterKey)
+    const raw = await crypto.subtle.exportKey('raw', unwrappedMasterKey)
     return crypto.subtle.importKey(
       'raw',
       raw,
@@ -67,44 +115,6 @@ export const masterKeyService: MasterKeyService = {
       false, // non-extractable
       ['deriveKey', 'deriveBits'] // allow derivation
     )
-  },
-
-  /** @inheritdoc */
-  async storeKey(generatedMasterKey: CryptoKey, rsaPublicKey: CryptoKey): Promise<void> {
-    try {
-      const wrappedMasterKey = await crypto.subtle.wrapKey(
-        'raw', // AES keys are exported as raw bytes
-        generatedMasterKey,
-        rsaPublicKey,
-        RSA_WRAP_ALGORITHM
-      )
-      const wrappedMasterKeyBase64 = fromUint8Array(new Uint8Array(wrappedMasterKey))
-      await cryptoKeyStorage.set(WRAPPED_MASTER_KEY_NAME, wrappedMasterKeyBase64)
-    } catch {
-      throw new Error('Failed to save master key')
-    }
-  },
-
-  /** @inheritdoc */
-  async loadKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey> {
-    const stored = await cryptoKeyStorage.get(WRAPPED_MASTER_KEY_NAME)
-    if (!stored) throw new Error('Wrapped Master key not found in storage')
-    const wrappedMasterKey = toUint8Array(stored).buffer as ArrayBuffer
-
-    try {
-      const unwrappedKey = await crypto.subtle.unwrapKey(
-        'raw',
-        wrappedMasterKey,
-        rsaPrivateKey,
-        RSA_WRAP_ALGORITHM,
-        MASTER_KEY_ALGORITHM,
-        true, // extractable (for future re-wrapping if needed)
-        ['encrypt', 'decrypt']
-      )
-      return masterKeyService.convertToDerivable(unwrappedKey)
-    } catch {
-      throw new Error('Failed to unwrap master key. Private key may be incorrect.')
-    }
   },
 
   /** @inheritdoc */

@@ -75,6 +75,30 @@ export interface CryptoService {
   isEncrypted(value: string): boolean
 
   /**
+   * Rotates the RSA key pair, re-wrapping the master key with the new public key.
+   *
+   * @param password - The user's master password.
+   * @returns A promise that resolves once rotation is complete.
+   * @throws {Error} If rotation fails.
+   */
+  rotateRsaKeys(password: string): Promise<void>
+
+  /**
+   * Re-encrypts the stored private key under a new password without
+   * regenerating the key material itself.  The existing ciphertext is
+   * decrypted with `oldPassword` and immediately re-encrypted with
+   * `newPassword`, then written back to storage.
+   *
+   * @param oldPassword - The current master password used to decrypt the
+   *   existing private key blob.
+   * @param newPassword - The new master password used to re-encrypt the
+   *   private key blob.
+   * @returns A promise that resolves once the rotated key blob has been saved.
+   * @throws {Error} If no private key is found in storage or decryption fails.
+   */
+  updatePassword(oldPassword: string, newPassword: string): Promise<void>
+
+  /**
    * Permanently deletes all cryptographic keys from storage.
    *
    * Called when the user requests "Drop Database" / full account wipe.

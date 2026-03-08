@@ -15,16 +15,19 @@ export const cryptoService: CryptoService = {
   async setup(password: string): Promise<CryptoKey> {
     const rsaKeyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(rsaKeyPair, password)
-    const masterKey = await masterKeyService.generateKey()
-    await masterKeyService.storeKey(masterKey, rsaKeyPair.publicKey)
+    const generatedMasterKey = await masterKeyService.generateKey()
+    const wrappedMasterKey = await masterKeyService.wrapKey(generatedMasterKey, rsaKeyPair.publicKey)
+    await masterKeyService.storeKey(wrappedMasterKey)
 
-    return masterKeyService.convertToDerivable(masterKey)
+    return masterKeyService.convertToDerivable(generatedMasterKey)
   },
 
   /** @inheritdoc */
   async unlock(password: string): Promise<CryptoKey> {
     const rsaPrivateKey = await rsaKeyService.loadPrivateKey(password)
-    return await masterKeyService.loadKey(rsaPrivateKey)
+    const wrappedMasterKey = await masterKeyService.loadKey()
+    const unwrappedMasterKey = await masterKeyService.unwrapKey(wrappedMasterKey, rsaPrivateKey)
+    return masterKeyService.convertToDerivable(unwrappedMasterKey)
   },
 
   /** @inheritdoc */
@@ -36,18 +39,28 @@ export const cryptoService: CryptoService = {
   /** @inheritdoc */
   async encrypt(data, masterKey, fieldId, userId) {
     const aad = getAdditionalAuthenticatedData(userId, fieldId)
-    return await fieldKeyService.encrypt(data, masterKey, fieldId, aad)
+    return fieldKeyService.encrypt(data, masterKey, fieldId, aad)
   },
 
   /** @inheritdoc */
   async decrypt(data, masterKey, fieldId, userId) {
     const aad = getAdditionalAuthenticatedData(userId, fieldId)
-    return await fieldKeyService.decrypt(data, masterKey, fieldId, aad)
+    return fieldKeyService.decrypt(data, masterKey, fieldId, aad)
   },
 
   /** @inheritdoc */
   isEncrypted(value: string): boolean {
     return fieldKeyService.isEncrypted(value)
+  },
+
+  /** @inheritdoc */
+  async rotateRsaKeys(password: string): Promise<void> {
+    await rsaKeyService.rotateKeys(password)
+  },
+
+  /** @inheritdoc */
+  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await rsaKeyService.updatePassword(oldPassword, newPassword)
   },
 
   /** @inheritdoc */
