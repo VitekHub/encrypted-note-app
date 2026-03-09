@@ -1,6 +1,7 @@
 import { rsaKeyService } from '../keys/asymmetric/rsa'
 import { masterKeyService } from '../keys/symmetric/master'
 import { fieldKeyService } from '../keys/symmetric/field'
+import { loginLockoutService } from '../../loginLockoutService'
 import type { CryptoService } from './types'
 
 function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
@@ -24,9 +25,20 @@ export const cryptoService: CryptoService = {
 
   /** @inheritdoc */
   async unlock(password: string): Promise<CryptoKey> {
-    const rsaPrivateKey = await rsaKeyService.loadPrivateKey(password)
-    const wrappedMasterKey = await masterKeyService.loadKey()
-    const unwrappedMasterKey = await masterKeyService.unwrapKey(wrappedMasterKey, rsaPrivateKey)
+    await loginLockoutService.checkLockout()
+
+    let unwrappedMasterKey: CryptoKey
+
+    try {
+      const rsaPrivateKey = await rsaKeyService.loadPrivateKey(password)
+      const wrappedMasterKey = await masterKeyService.loadKey()
+      unwrappedMasterKey = await masterKeyService.unwrapKey(wrappedMasterKey, rsaPrivateKey)
+    } catch (error) {
+      await loginLockoutService.recordFailedAttempt()
+      throw error
+    }
+
+    await loginLockoutService.reset()
     return masterKeyService.convertToDerivable(unwrappedMasterKey)
   },
 
@@ -65,6 +77,6 @@ export const cryptoService: CryptoService = {
 
   /** @inheritdoc */
   async teardown(): Promise<void> {
-    await Promise.all([rsaKeyService.deleteKeys(), masterKeyService.deleteKey()])
+    await Promise.all([rsaKeyService.deleteKeys(), masterKeyService.deleteKey(), loginLockoutService.reset()])
   },
 }
