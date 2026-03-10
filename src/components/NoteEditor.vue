@@ -59,11 +59,13 @@ import AppInfo from './AppInfo.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import Settings from './Settings.vue'
 import NotificationContainer from './NotificationContainer.vue'
+import { useSettings } from '../composables/useSettings'
 
 const STORAGE_KEY = 'app-note'
 
 const { saveNote, loadNote, clearNote, loading, error } = useEncryptedNote(STORAGE_KEY)
 const { setMasterKey, clearMasterKey } = useSessionKeys()
+const { settings } = useSettings()
 
 useAutoLock(handleLock)
 
@@ -85,8 +87,10 @@ async function handleUnlock() {
   loading.value = true
   try {
     if (signingUp.value) {
-      const key = await cryptoService.setup(passwordInput.value)
-      setMasterKey(key)
+      const { masterKey, argon2Params } = await cryptoService.setup(passwordInput.value)
+      setMasterKey(masterKey)
+      // Save the calibrated params to settings so future encryptions (e.g. settings password change) use them
+      settings.value.argon2Params = argon2Params
       keysExist.value = true
       unlocked.value = true
     } else {

@@ -1,3 +1,6 @@
+import { CalibrationResult } from '../argon2Calibration'
+import type { Argon2Params } from '../keys/symmetric/passwordDerived'
+
 /**
  * High-level cryptographic service that orchestrates the full key setup,
  * unlock, and teardown flows. Acts as a facade over RSA and Master Key services.
@@ -20,10 +23,11 @@ export interface CryptoService {
    * - Returns the unwrapped Master Key for use during this session
    *
    * @param password - The user's master password for protecting the RSA private key
-   * @returns A promise that resolves to the unwrapped Master Key (CryptoKey)
+   * @returns A promise that resolves to an object containing the unwrapped
+   *          Master Key (CryptoKey) and the calibrated Argon2id parameters used.
    * @throws {Error} If key generation or storage fails
    */
-  setup(password: string): Promise<CryptoKey>
+  setup(password: string): Promise<{ masterKey: CryptoKey; argon2Params: Argon2Params }>
 
   /**
    * Called during login: Loads and unwraps both RSA and Master Keys.
@@ -97,6 +101,13 @@ export interface CryptoService {
    * @throws {Error} If no private key is found in storage or decryption fails.
    */
   updatePassword(oldPassword: string, newPassword: string): Promise<void>
+
+  /**
+   * Calibrates Argon2id parameters to the current device's capabilities and updates the default parameters.
+   *
+   * @returns A promise that resolves to the calibrated Argon2id parameters.
+   */
+  calibrateToDeviceCapability(): Promise<CalibrationResult>
 
   /**
    * Permanently deletes all cryptographic keys from storage.

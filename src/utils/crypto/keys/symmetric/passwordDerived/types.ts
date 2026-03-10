@@ -44,19 +44,3 @@ export interface PasswordDerivedService {
    */
   isEncrypted(value: string): boolean
 }
-
-/**
- * Parameters for Argon2id key derivation. These values balance security and performance:
- * - iterations: Number of passes (higher increases computation time).
- * - memorySize: Memory usage in KiB (higher makes GPU/ASIC attacks harder).
- * - parallelism: Number of threads (typically 4 for modern browsers/Node).
- * - hashLength: Output hash length in bytes (32 = 256-bit key for AES-GCM).
- * Higher values increase security by making key derivation slower and more resource-intensive,
- * which protects against dictionary attacks, but also increases computation time for encryption/decryption.
- */
-export interface Argon2Params {
-  iterations: number
-  memorySize: number
-  parallelism: number
-  hashLength: number
-}

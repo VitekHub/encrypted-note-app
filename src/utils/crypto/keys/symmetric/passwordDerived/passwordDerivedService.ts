@@ -7,15 +7,10 @@
  */
 
 import { argon2id } from 'hash-wasm'
-import type { Argon2Params, PasswordDerivedService } from './types'
+import type { PasswordDerivedService } from './types'
 import { Encryptor } from '../../../Encryptor'
-
-const DEFAULT_ARGON2_PARAMS: Argon2Params = {
-  iterations: 3,
-  memorySize: 64 * 1024, // 64 MiB (in KiB)
-  parallelism: 4, // threads
-  hashLength: 32, // 256-bit output (32 bytes)
-}
+import type { Argon2Params } from '../../../argon2Calibration'
+import { DEFAULT_ARGON2_PARAMS } from '../../../argon2Calibration'
 
 /** 4 params × 4 bytes each = 16 bytes of metadata in the blob. */
 const ARGON2_METADATA_LEN = 16

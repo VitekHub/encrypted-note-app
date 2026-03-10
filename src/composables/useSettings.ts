@@ -1,7 +1,9 @@
 import { ref, watch } from 'vue'
+import type { Argon2Params } from '../utils/crypto/keys/symmetric/passwordDerived'
 
 export interface AppSettings {
   idleTimeoutMinutes: number
+  argon2Params?: Argon2Params
 }
 
 const SETTINGS_KEY = 'app-settings'

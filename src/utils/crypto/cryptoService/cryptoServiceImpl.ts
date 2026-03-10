@@ -2,25 +2,35 @@ import { rsaKeyService } from '../keys/asymmetric/rsa'
 import { masterKeyService } from '../keys/symmetric/master'
 import { fieldKeyService } from '../keys/symmetric/field'
 import { loginLockoutService } from '../../loginLockoutService'
+import { argon2CalibrationService, CalibrationResult, DEFAULT_ARGON2_PARAMS } from '../argon2Calibration'
+import type { Argon2Params } from '../keys/symmetric/passwordDerived'
 import type { CryptoService } from './types'
 
 function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
   return `${userId}:${fieldId}`
 }
 
+let argon2Params = DEFAULT_ARGON2_PARAMS
+
 /**
  * Singleton instance of CryptoService.
  */
 export const cryptoService: CryptoService = {
   /** @inheritdoc */
-  async setup(password: string): Promise<CryptoKey> {
+  async setup(password: string): Promise<{ masterKey: CryptoKey; argon2Params: Argon2Params }> {
+    // Calibrate Argon2id for this device to find strongest viable params
+    const { params } = await argon2CalibrationService.calibrate()
+    argon2Params = params
     const rsaKeyPair = await rsaKeyService.generateKeys()
-    await rsaKeyService.storeKeys(rsaKeyPair, password)
+    await rsaKeyService.storeKeys(rsaKeyPair, password, argon2Params)
     const generatedMasterKey = await masterKeyService.generateKey()
     const wrappedMasterKey = await masterKeyService.wrapKey(generatedMasterKey, rsaKeyPair.publicKey)
     await masterKeyService.storeKey(wrappedMasterKey)
 
-    return masterKeyService.convertToDerivable(generatedMasterKey)
+    return {
+      masterKey: await masterKeyService.convertToDerivable(generatedMasterKey),
+      argon2Params,
+    }
   },
 
   /** @inheritdoc */
@@ -31,6 +41,8 @@ export const cryptoService: CryptoService = {
 
     try {
       const rsaPrivateKey = await rsaKeyService.loadPrivateKey(password)
+      // TODO - get params from decryption and store them here in argon2Params
+      // argon2Params = params
       const wrappedMasterKey = await masterKeyService.loadKey()
       unwrappedMasterKey = await masterKeyService.unwrapKey(wrappedMasterKey, rsaPrivateKey)
     } catch (error) {
@@ -67,12 +79,19 @@ export const cryptoService: CryptoService = {
 
   /** @inheritdoc */
   async rotateRsaKeys(password: string): Promise<void> {
-    await rsaKeyService.rotateKeys(password)
+    await rsaKeyService.rotateKeys(password, argon2Params)
   },
 
   /** @inheritdoc */
-  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
-    await rsaKeyService.updatePassword(oldPassword, newPassword)
+  async updatePassword(oldPassword, newPassword): Promise<void> {
+    await rsaKeyService.updatePassword(oldPassword, newPassword, argon2Params)
+  },
+
+  /** @inheritdoc */
+  async calibrateToDeviceCapability(): Promise<CalibrationResult> {
+    const result = await argon2CalibrationService.calibrate()
+    argon2Params = result.params
+    return result
   },
 
   /** @inheritdoc */

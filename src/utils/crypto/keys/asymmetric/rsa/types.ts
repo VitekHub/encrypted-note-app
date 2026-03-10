@@ -1,3 +1,5 @@
+import type { Argon2Params } from '../../symmetric/passwordDerived'
+
 /**
  * Service that manages the full lifecycle of an RSA-OAEP 2048-bit key pair:
  * generation, persistent storage, loading, existence checks, deletion, and
@@ -22,9 +24,12 @@ export interface RsaKeyService {
    * @param keyPair - The RSA key pair (as returned by
    *   {@link generateKeys}) to store.
    * @param password - The user's master password used to encrypt the private key.
+   * @param argon2Params - Optional Argon2id parameters for key derivation.
+   *   When provided, a fresh {@link PasswordDerivedServiceImpl} is created
+   *   with these params; otherwise the module-level defaults are used.
    * @returns A promise that resolves once both keys have been saved.
    */
-  storeKeys(keyPair: CryptoKeyPair, password: string): Promise<void>
+  storeKeys(keyPair: CryptoKeyPair, password: string, argon2Params?: Argon2Params): Promise<void>
 
   /**
    * Retrieves and imports the RSA public key from storage as a non-extractable
@@ -75,10 +80,13 @@ export interface RsaKeyService {
    *   existing private key blob.
    * @param newPassword - The new master password used to re-encrypt the
    *   private key blob.
+   * @param argon2Params - Optional Argon2id parameters for re-encryption.
+   *   When provided, the new blob is encrypted with these params;
+   *   otherwise the module-level defaults are used.
    * @returns A promise that resolves once the rotated key blob has been saved.
    * @throws {Error} If no private key is found in storage or decryption fails.
    */
-  updatePassword(oldPassword: string, newPassword: string): Promise<void>
+  updatePassword(oldPassword: string, newPassword: string, argon2Params?: Argon2Params): Promise<void>
 
   /**
    * Rotates the RSA key pair: generates a new pair, re-wraps the master key
@@ -89,8 +97,11 @@ export interface RsaKeyService {
    *
    * @param password - The user's master password required to decrypt the
    *   current private key and encrypt the new one.
+   * @param argon2Params - Optional Argon2id parameters for encrypting the
+   *   new private key. When provided, the new blob uses these params;
+   *   otherwise the module-level defaults are used.
    * @returns A promise that resolves once rotation is complete.
    * @throws {Error} If rotation fails; old keys are restored.
    */
-  rotateKeys(password: string): Promise<void>
+  rotateKeys(password: string, argon2Params?: Argon2Params): Promise<void>
 }
