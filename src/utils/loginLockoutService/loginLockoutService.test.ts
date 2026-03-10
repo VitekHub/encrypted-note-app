@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { loginLockoutService, LockoutError } from './loginLockoutServiceImpl'
 import { cryptoKeyStorage } from '../crypto/keyStorage'
+import { encode } from 'js-base64'
 
 vi.mock('../crypto/keyStorage', () => ({
   cryptoKeyStorage: {
@@ -16,7 +17,7 @@ async function calculateTestSignature(value: string): Promise<string> {
   const data = encoder.encode(value + 'd8f9q2438hf9q284hfq2834hfq2384hf')
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return btoa(String.fromCharCode(...hashArray))
+  return encode(String.fromCharCode(...hashArray))
 }
 
 describe('loginLockoutService', () => {

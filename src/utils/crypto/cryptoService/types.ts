@@ -107,4 +107,10 @@ export interface CryptoService {
    * @returns A promise that resolves once all keys have been deleted
    */
   teardown(): Promise<void>
+
+  /**
+   * Clears sensitive data from memory, such as field keys and other temporary variables.
+   * This is typically called upon session lock or when the application goes idle.
+   */
+  lock(): void
 }

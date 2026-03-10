@@ -79,4 +79,9 @@ export const cryptoService: CryptoService = {
   async teardown(): Promise<void> {
     await Promise.all([rsaKeyService.deleteKeys(), masterKeyService.deleteKey(), loginLockoutService.reset()])
   },
+
+  /** @inheritdoc */
+  lock() {
+    fieldKeyService.clear()
+  },
 }

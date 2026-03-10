@@ -53,4 +53,9 @@ export const fieldKeyService: FieldKeyService = {
   isEncrypted(value) {
     return encryptor.isEncrypted(value)
   },
+
+  /** @inheritdoc */
+  clear() {
+    fieldKeys.clear()
+  },
 }

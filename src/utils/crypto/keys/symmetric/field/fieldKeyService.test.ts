@@ -126,3 +126,24 @@ describe('fieldKeyService.isEncrypted', () => {
     expect(fieldKeyService.isEncrypted('dG9vcw==')).toBe(false)
   })
 })
+
+describe('fieldKeyService.clear', () => {
+  it('clears the cached keys without breaking subsequent operations', async () => {
+    // Encrypt once to cache the key
+    const blob1 = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
+
+    // Clear the cache
+    fieldKeyService.clear()
+
+    // Encrypt again should work and derive a new key
+    const blob2 = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
+    expect(blob2).not.toBe(blob1)
+
+    // Decrypting both should still work because deriveFieldKey is deterministic given the same salt in the blob
+    const dec1 = await fieldKeyService.decrypt(blob1, masterKey, FIELD, AAD)
+    const dec2 = await fieldKeyService.decrypt(blob2, masterKey, FIELD, AAD)
+
+    expect(dec1).toBe(PLAINTEXT)
+    expect(dec2).toBe(PLAINTEXT)
+  })
+})

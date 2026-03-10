@@ -1,5 +1,6 @@
 import { cryptoKeyStorage } from '../crypto/keyStorage'
 import type { LoginLockoutService } from './types'
+import { encode } from 'js-base64'
 
 const ATTEMPTS_KEY = 'login_lockout_attempts'
 const LOCK_UNTIL_KEY = 'login_lockout_lock_until'
@@ -15,7 +16,7 @@ async function calculateSignature(value: string): Promise<string> {
   const data = encoder.encode(value + LOCKOUT_SECRET)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return btoa(String.fromCharCode(...hashArray))
+  return encode(String.fromCharCode(...hashArray))
 }
 
 // Exponential backoff configuration

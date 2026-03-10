@@ -20,17 +20,18 @@
       <AppInfo />
     </template>
 
-    <NoteArea
-      v-else
-      v-model="noteText"
-      :loading="loading"
-      :error="error"
-      :save-status="saveStatus"
-      @save="handleSave"
-      @lock="handleLock"
-    />
+    <div v-else>
+      <NoteArea
+        v-model="noteText"
+        :loading="loading"
+        :error="error"
+        :save-status="saveStatus"
+        @save="handleSave"
+        @lock="handleLock"
+      />
 
-    <Settings />
+      <Settings />
+    </div>
 
     <ConfirmDialog
       v-if="showDropConfirm"
@@ -49,6 +50,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useEncryptedNote } from '../composables/useEncryptedNote'
 import { useSessionKeys } from '../composables/useSessionKeys'
+import { useAutoLock } from '../composables/useAutoLock'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import UnlockForm from './UnlockForm.vue'
 import NoteArea from './NoteArea.vue'
@@ -62,6 +64,8 @@ const STORAGE_KEY = 'app-note'
 
 const { saveNote, loadNote, clearNote, loading, error } = useEncryptedNote(STORAGE_KEY)
 const { setMasterKey, clearMasterKey } = useSessionKeys()
+
+useAutoLock(handleLock)
 
 const passwordInput = ref('')
 const noteText = ref('')
@@ -113,6 +117,7 @@ async function handleSave() {
 }
 
 function handleLock() {
+  cryptoService.lock()
   clearMasterKey()
   unlocked.value = false
   noteText.value = ''
@@ -124,12 +129,8 @@ function handleLock() {
 async function handleDrop() {
   await cryptoService.teardown()
   clearNote()
-  clearMasterKey()
+  handleLock()
   showDropConfirm.value = false
-  unlocked.value = false
-  noteText.value = ''
-  passwordInput.value = ''
-  saveStatus.value = ''
   keysExist.value = false
 }
 </script>

@@ -36,4 +36,9 @@ export interface FieldKeyService {
    * Returns true if `value` appears to be a valid encrypted blob.
    */
   isEncrypted(value: string): boolean
+
+  /**
+   * Clears the derived keys from memory.
+   */
+  clear(): void
 }

@@ -3,6 +3,18 @@
     <h2>Security Settings</h2>
 
     <div class="setting-section">
+      <h3>Auto-Lock</h3>
+      <p>Automatically lock your session and clear memory after a period of inactivity.</p>
+      <div class="select-wrapper">
+        <select v-model="settings.idleTimeoutMinutes" class="timeout-select">
+          <option v-for="option in timeoutOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+    </div>
+
+    <div class="setting-section">
       <h3>Password Management</h3>
       <p>Change your master password. This re-encrypts your RSA private key with the new password.</p>
       <button class="btn-primary" @click="openChangePasswordDialog">Change Password</button>
@@ -68,12 +80,23 @@
 import { ref, nextTick } from 'vue'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import { useNotification } from '../composables/useNotification'
+import { useSettings } from '../composables/useSettings'
 
 const emit = defineEmits<{
   close: []
 }>()
 
 const { showNotification } = useNotification()
+const { settings } = useSettings()
+
+const timeoutOptions = [
+  { value: 1, label: '1 minute' },
+  { value: 5, label: '5 minutes' },
+  { value: 15, label: '15 minutes' },
+  { value: 30, label: '30 minutes' },
+  { value: 60, label: '1 hour' },
+  { value: 0, label: 'Never' },
+]
 
 const showChangePassword = ref(false)
 const showRotateRsa = ref(false)
@@ -213,6 +236,29 @@ async function handleRotateRsa() {
 
   button {
     transition: all 0.2s ease;
+  }
+}
+
+.select-wrapper {
+  margin-top: 12px;
+
+  .timeout-select {
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    max-width: 200px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    }
   }
 }
 
