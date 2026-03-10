@@ -2,7 +2,7 @@ import { rsaKeyService } from '../keys/asymmetric/rsa'
 import { masterKeyService } from '../keys/symmetric/master'
 import { fieldKeyService } from '../keys/symmetric/field'
 import { loginLockoutService } from '../../loginLockoutService'
-import { argon2CalibrationService, CalibrationResult, DEFAULT_ARGON2_PARAMS } from '../argon2Calibration'
+import { argon2CalibrationService, CalibrationResult, FALLBACK_ARGON2_PARAMS } from '../argon2Calibration'
 import type { Argon2Params } from '../keys/symmetric/passwordDerived'
 import type { CryptoService } from './types'
 
@@ -10,7 +10,7 @@ function getAdditionalAuthenticatedData(userId: string, fieldId: string): string
   return `${userId}:${fieldId}`
 }
 
-let argon2Params = DEFAULT_ARGON2_PARAMS
+let argon2Params = FALLBACK_ARGON2_PARAMS
 
 /**
  * Singleton instance of CryptoService.

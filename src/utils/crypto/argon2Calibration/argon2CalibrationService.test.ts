@@ -1,119 +1,178 @@
-import { describe, it, expect, vi } from 'vitest'
-import { argon2CalibrationService } from './argon2CalibrationService'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { argon2CalibrationService, FALLBACK_ARGON2_PARAMS } from './argon2CalibrationService'
 import { argon2id } from 'hash-wasm'
-import type { Argon2Params } from './types'
 
-// Mock hash-wasm to control the "timing" of argon2id
+// Increase timeout because some paths do many sequential awaits
+vi.setConfig({ testTimeout: 10_000 })
+
 vi.mock('hash-wasm', () => ({
   argon2id: vi.fn(),
 }))
 
-describe('argon2CalibrationService.calibrate', () => {
-  it('returns parameters and duration when calibration is successful', async () => {
-    // Simulate a device where 128MB takes ~1.2s
-    let callCount = 0
-    vi.mocked(argon2id).mockImplementation(async () => {
-      callCount++
-      // First call (64MB) -> fast (e.g. 400ms)
-      // Second call (128MB) -> target (e.g. 1200ms)
-      if (callCount === 1) {
-        await new Promise((r) => setTimeout(r, 10)) // simulate some work
-        return 'hash'
-      }
-      // Simulate 1200ms by delaying the mock
-      // However, the benchmark uses performance.now() which we can't easily control via setTimeout alone in a mock
-      // unless we also mock performance.now()
-      return 'hash'
-    })
+describe('argon2CalibrationService.calibrate()', () => {
+  let mockTime = 10000
 
-    // To properly test the LOGIC of doubling/binary search, we'd need to mock performance.now()
-    const nowSpy = vi.spyOn(performance, 'now')
-    let mockTime = 10000
-    nowSpy.mockImplementation(() => {
-      const current = mockTime
-      return current
-    })
-
-    // Mock sequence:
-    // 1. benchmark(64MB) -> returns 400ms
-    // 2. benchmark(128MB) -> returns 1200ms (TARGET!)
-
-    vi.mocked(argon2id).mockImplementation(async () => {
-      // Sequence of benchmark calls:
-      // Call 1: memory=64MB. We want duration < 800ms. e.g. 400ms.
-      // So performance.now() should move from T to T+400.
-      mockTime += 400
-      return 'hash'
-    })
-
-    // Reset mockTime for the actual run
+  beforeEach(() => {
+    vi.stubGlobal('navigator', { hardwareConcurrency: 4 })
+    vi.spyOn(performance, 'now').mockImplementation(() => mockTime)
     mockTime = 10000
 
-    // First call (64MB) -> 400ms
-    // Second call (128MB) -> 1200ms
-    // we need to set the mockTime INCREMENTS carefully
+    // Reset mock calls
+    vi.mocked(argon2id).mockReset()
+  })
 
-    let benchmarkStep = 0
-    vi.mocked(argon2id).mockImplementation(async () => {
-      benchmarkStep++
-      if (benchmarkStep === 1) {
-        mockTime += 400 // 64MB -> 400ms
-      } else if (benchmarkStep === 2) {
-        mockTime += 1200 // 128MB -> 1200ms
-      }
-      return 'hash'
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  // Helper to simulate argon2id timing
+  function mockBenchmark(durationMs: number) {
+    vi.mocked(argon2id).mockImplementationOnce(async () => {
+      mockTime += durationMs
+      return 'deadbeef'.repeat(8) // dummy hex
     })
+  }
+
+  it('returns fallback when calibration times out early', async () => {
+    // Make every call take almost the whole budget → timeout in phase 1
+    mockBenchmark(14000)
+    mockBenchmark(14000) // second call would exceed
+
+    const result = await argon2CalibrationService.calibrate()
+
+    expect(result.params).toEqual(FALLBACK_ARGON2_PARAMS)
+    expect(result.durationMs).toBe(0)
+  })
+
+  it('finds good parameters in phase 1 (lucky device)', async () => {
+    // 64 MiB → 650 ms  (too fast)
+    // 128 MiB → 920 ms  → perfect range
+    mockBenchmark(650)
+    mockBenchmark(920)
 
     const result = await argon2CalibrationService.calibrate()
 
     expect(result.params.memorySize).toBe(128 * 1024)
-    expect(result.durationMs).toBe(1200)
-    expect(benchmarkStep).toBe(2) // 64MB was too fast, 128MB hit the spot
-
-    nowSpy.mockRestore()
+    expect(result.params.iterations).toBe(3) // no tuning needed
+    expect(result.durationMs).toBe(920)
+    expect(result.params.parallelism).toBe(4)
   })
 
-  it('performs binary search if doubling jumps over the target', async () => {
-    const nowSpy = vi.spyOn(performance, 'now')
-    let mockTime = 10000
-    nowSpy.mockImplementation(() => mockTime)
+  it('performs binary search in phase 2 and lands in range', async () => {
+    // Phase 1 doubling
+    mockBenchmark(280) // 64 MiB   < 800
+    mockBenchmark(540) // 128 MiB  < 800
+    mockBenchmark(760) // 256 MiB  < 800   → lo = 256
+    mockBenchmark(2450) // 512 MiB  > 2000  → hi = 512, first slow
 
-    // Sequence:
-    // 1. 64MB -> 400ms (too fast)
-    // 2. 128MB -> 3000ms (too slow!) -> starts binary search between 64 and 128
-    // 3. 96MB (mid) -> 1500ms (TARGET!)
+    // Binary search (lo=256 @760 ms, hi=512 @2450 ms)
 
-    vi.mocked(argon2id).mockImplementation(async (params: Argon2Params) => {
-      if (params.memorySize === 64 * 1024) mockTime += 400
-      else if (params.memorySize === 128 * 1024) mockTime += 3000
-      else if (params.memorySize === 96 * 1024) mockTime += 1500
-      return 'hash'
-    })
+    // mid ≈ 384 MiB → too slow → hi = 384
+    mockBenchmark(2280) // 384 MiB > 2000
+
+    // mid ≈ 320 MiB → good range → should return immediately
+    mockBenchmark(1420) // 320 MiB  ∈ [800,2000]
 
     const result = await argon2CalibrationService.calibrate()
 
-    expect(result.params.memorySize).toBe(96 * 1024)
-    expect(result.durationMs).toBe(1500)
-
-    nowSpy.mockRestore()
+    expect(result.params.memorySize).toBe(320 * 1024)
+    expect(result.params.iterations).toBe(3)
+    expect(result.durationMs).toBe(1420)
   })
 
-  it('caps at MAX_MEMORY_KIB if target is never reached', async () => {
-    const nowSpy = vi.spyOn(performance, 'now')
-    let mockTime = 10000
-    nowSpy.mockImplementation(() => mockTime)
+  it('tunes iterations upward when memory maxed but still fast', async () => {
+    // Very fast device: even 512 MiB @ iter=3 is only 480 ms
+    // Should climb iterations
+    mockBenchmark(120) // 64
+    mockBenchmark(220) // 128
+    mockBenchmark(380) // 256
+    mockBenchmark(480) // 512  ← max memory, still <800
 
-    // Everything is super fast (e.g. 10ms) even at 512MB
-    vi.mocked(argon2id).mockImplementation(async () => {
-      mockTime += 10
-      return 'hash'
-    })
+    // Now tune iterations (phase 3)
+    // iter=4 → 820 ms  (good!)
+    mockBenchmark(820)
 
     const result = await argon2CalibrationService.calibrate()
 
-    expect(result.params.memorySize).toBe(512 * 1024) // Cap
-    expect(result.durationMs).toBe(10)
+    expect(result.params.memorySize).toBe(512 * 1024)
+    expect(result.params.iterations).toBe(4)
+    expect(result.durationMs).toBe(820)
+  })
 
-    nowSpy.mockRestore()
+  it('stops iteration tuning if next step would overshoot too much', async () => {
+    // Force it to reach max memory without early accept
+    mockBenchmark(180) // 64
+    mockBenchmark(340) // 128
+    mockBenchmark(620) // 256
+    mockBenchmark(720) // 512 @ iter=3  < EARLY_ACCEPT_BELOW=736 → continues to phase 3
+
+    // Phase 3 – tune iterations
+    mockBenchmark(1480) // iter=4 @512 MiB → good range → accept & stop
+
+    // We should NOT see iter=5 because we're already in range
+
+    const result = await argon2CalibrationService.calibrate()
+
+    expect(result.params.memorySize).toBe(512 * 1024)
+    expect(result.params.iterations).toBe(4)
+    expect(result.durationMs).toBe(1480)
+  })
+
+  it('early-accepts when already very close after phase 1 or 2', async () => {
+    mockBenchmark(420) // 64 MiB – too fast
+
+    // 128 MiB – just above EARLY_ACCEPT_BELOW, should early-return from tuneIterations
+    mockBenchmark(750) // 750 > 736 → early accept
+
+    const result = await argon2CalibrationService.calibrate()
+
+    expect(result.params.memorySize).toBe(128 * 1024)
+    expect(result.params.iterations).toBe(3)
+    expect(result.durationMs).toBe(750)
+  })
+
+  it('uses correct parallelism from hardwareConcurrency', async () => {
+    vi.stubGlobal('navigator', { hardwareConcurrency: 6 })
+
+    // Just one fast call to see parallelism=6
+    mockBenchmark(900)
+
+    const result = await argon2CalibrationService.calibrate()
+
+    expect(result.params.parallelism).toBe(6)
+  })
+
+  it('clamps parallelism between 1 and 8', async () => {
+    // Test upper bound
+    vi.stubGlobal('navigator', { hardwareConcurrency: 16 })
+    mockBenchmark(900)
+    let result = await argon2CalibrationService.calibrate()
+    expect(result.params.parallelism).toBe(8)
+
+    // Test lower bound
+    vi.stubGlobal('navigator', { hardwareConcurrency: 0 }) // fallback to 4, but min 1
+    mockBenchmark(900)
+    result = await argon2CalibrationService.calibrate()
+    expect(result.params.parallelism).toBeGreaterThanOrEqual(1)
+  })
+
+  it('falls back when binary search cannot find sweet spot in time', async () => {
+    // Phase 1 quick
+    mockBenchmark(180) // 64
+    mockBenchmark(350) // 128
+    mockBenchmark(680) // 256
+    mockBenchmark(2200) // 512 → first slow
+
+    // Now burn time in binary search (lo=256 @680, hi=512 @2200)
+    // Each call ~1400–1500 ms → 9–10 calls will exceed 15 s
+    for (let i = 0; i < 10; i++) {
+      mockBenchmark(1480)
+    }
+
+    const result = await argon2CalibrationService.calibrate()
+
+    expect(result.params).toEqual(FALLBACK_ARGON2_PARAMS)
+    expect(result.durationMs).toBe(0)
   })
 })

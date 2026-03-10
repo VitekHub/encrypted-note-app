@@ -27,7 +27,7 @@ export interface Argon2CalibrationService {
    * Runs a series of Argon2id benchmarks and returns the strongest
    * parameters that keep derivation time within the target window.
    *
-   * Calibration runs in two phases:
+   * Calibration runs in three phases:
    * - **Phase 1 (exponential search)**: Starts from baseline (64 MiB) and doubles memorySize
    *   until time exceeds 2000 ms or max cap (512 MiB) is reached.
    *   - Returns early if any step lands inside 800–2000 ms (sweet spot found).
@@ -35,6 +35,14 @@ export interface Argon2CalibrationService {
    * - **Phase 2 (binary search)**: Only entered if Phase 1 overshot the target.
    *   Refines between the last acceptable and first too-slow memory value to maximize
    *   memorySize while staying as close as possible to the target time range.
+   * - **Phase 3 (iteration tuning)**: If the found memory still results in a duration
+   *   significantly below target, increases iterations to further strengthen the hash.
+   *
+   * If calibration fails or exceeds a 15s time budget, it falls back to safe defaults.
+   *
+  /**
+   * Runs a series of Argon2id benchmarks and returns the strongest
+   * parameters that keep derivation time within the target window.
    *
    * @returns {Promise<CalibrationResult>} The calibrated parameters and measured duration
    */

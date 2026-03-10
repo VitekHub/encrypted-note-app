@@ -10,7 +10,7 @@ import { argon2id } from 'hash-wasm'
 import type { PasswordDerivedService } from './types'
 import { Encryptor } from '../../../Encryptor'
 import type { Argon2Params } from '../../../argon2Calibration'
-import { DEFAULT_ARGON2_PARAMS } from '../../../argon2Calibration'
+import { FALLBACK_ARGON2_PARAMS } from '../../../argon2Calibration'
 
 /** 4 params × 4 bytes each = 16 bytes of metadata in the blob. */
 const ARGON2_METADATA_LEN = 16
@@ -21,7 +21,7 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
   private readonly encryptor: Encryptor
 
   constructor(argon2Params?: Partial<Argon2Params>) {
-    this.params = { ...DEFAULT_ARGON2_PARAMS, ...argon2Params }
+    this.params = { ...FALLBACK_ARGON2_PARAMS, ...argon2Params }
     this.metadata = this.serializeArgon2Params(this.params)
     this.encryptor = new Encryptor({ metadataLen: ARGON2_METADATA_LEN })
   }

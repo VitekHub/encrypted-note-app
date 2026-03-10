@@ -1,47 +1,50 @@
-/**
- * Argon2id calibration service.
- *
- * Benchmarks the current device to find the strongest Argon2id parameters
- * whose derivation time stays within a configurable target window
- * (default 0.8–2.0 seconds). This ensures that key derivation is as
- * expensive as the device can comfortably handle, maximizing resistance
- * to brute-force / dictionary attacks while keeping user-perceived
- * latency acceptable.
- *
- * The calibration strategy:
- * 1. Start from baseline parameters (64 MiB, 3 iterations, 4 threads).
- * 2. Double `memorySize` until derivation exceeds the target maximum.
- * 3. Binary-search between the last "fast" and first "slow" memory sizes
- *    to land inside the target window.
- *
- * A dummy password and salt are used during calibration — no real
- * secrets are involved.
- */
-
 import { argon2id } from 'hash-wasm'
 import type { Argon2CalibrationService, CalibrationResult, Argon2Params } from './types'
 
 /** Target derivation time range in milliseconds. */
 const TARGET_MIN_MS = 800
 const TARGET_MAX_MS = 2000
+const TARGET_IDEAL_MS = 1250 // aim roughly for middle of range
+const EARLY_ACCEPT_BELOW = TARGET_MIN_MS * 0.92 // 736 ms
+const MIN_ACCEPTABLE_MS = 550 // still better than fallback
+
+/** Maximum time allowed for the entire calibration process (15 seconds). */
+const TOTAL_CALIBRATION_BUDGET_MS = 15_000
 
 /** Maximum memory the calibration will ever try (512 MiB in KiB). */
 const MAX_MEMORY_KIB = 512 * 1024
 
+/** Minimum memory floor (64 MiB in KiB). */
+const MIN_MEMORY_KIB = 64 * 1024
+
+/** Maximum iterations for tuning (Phase 3). */
+const MAX_ITERATIONS = 10
+
 /** Minimum granularity for the binary-search step (1 MiB in KiB). */
 const BINARY_SEARCH_PRECISION_KIB = 1024
 
-/** Baseline parameters used as the starting point for calibration. */
-export const DEFAULT_ARGON2_PARAMS: Argon2Params = {
+/** Safe fallback parameters if calibration fails or times out. */
+export const FALLBACK_ARGON2_PARAMS: Argon2Params = {
   iterations: 3,
   memorySize: 64 * 1024, // 64 MiB in KiB
   parallelism: 4,
   hashLength: 32,
 }
 
+/** Default hash length for calibration. */
+const DEFAULT_HASH_LENGTH = 32
+
 /** Dummy values used exclusively during calibration benchmarks. */
 const CALIBRATION_PASSWORD = 'calibration-benchmark'
 const CALIBRATION_SALT = new Uint8Array(16) // all-zero salt, fine for timing
+
+/**
+ * Detects the optimal parallelism for the current device.
+ * Capped between 1 and 8.
+ */
+function getParallelism(): number {
+  return Math.max(1, Math.min(8, navigator.hardwareConcurrency ?? 4))
+}
 
 /**
  * Runs a single Argon2id derivation with the given parameters and
@@ -64,68 +67,139 @@ async function benchmark(params: Argon2Params): Promise<number> {
   return performance.now() - start
 }
 
+/**
+ * Phase 3: Increment iterations if there is still "room" in the time budget.
+ * Helps strengthen the hash on fast devices where max memory is still quick.
+ */
+async function tuneIterations(result: CalibrationResult, startTime: number): Promise<CalibrationResult> {
+  let { params, durationMs } = result
+  const isWithinBudget = () => performance.now() - startTime < TOTAL_CALIBRATION_BUDGET_MS
+
+  // Early accept if already very close
+  if (durationMs >= EARLY_ACCEPT_BELOW) {
+    return { params: { ...params }, durationMs }
+  }
+
+  // Try to climb iterations
+  while (params.iterations < MAX_ITERATIONS && durationMs < TARGET_IDEAL_MS && isWithinBudget()) {
+    const candidate = { ...params, iterations: params.iterations + 1 }
+    const nextDuration = await benchmark(candidate)
+
+    // Accept only if not clearly overshooting
+    if (nextDuration > TARGET_MAX_MS * 1.15) break // 15% overshoot tolerance
+    if (nextDuration < MIN_ACCEPTABLE_MS) break // something is wrong
+
+    params = candidate
+    durationMs = Math.round(nextDuration)
+
+    // Sweet spot — stop early if good enough
+    if (durationMs >= TARGET_MIN_MS && durationMs <= TARGET_MAX_MS) {
+      break
+    }
+  }
+
+  return { params: { ...params }, durationMs }
+}
+
 export const argon2CalibrationService: Argon2CalibrationService = {
   /** @inheritdoc */
   async calibrate(): Promise<CalibrationResult> {
-    // Phase 1 — exponential doubling of memorySize until we exceed the target
-    let lastFastMemory = DEFAULT_ARGON2_PARAMS.memorySize
-    let firstSlowMemory: number | null = null
-    let lastDuration = 0
+    const startTime = performance.now()
+    const parallelism = getParallelism()
 
-    let memory = DEFAULT_ARGON2_PARAMS.memorySize
-    while (memory <= MAX_MEMORY_KIB) {
-      const params: Argon2Params = { ...DEFAULT_ARGON2_PARAMS, memorySize: memory }
-      const duration = await benchmark(params)
+    const isWithinBudget = () => performance.now() - startTime < TOTAL_CALIBRATION_BUDGET_MS
 
-      if (duration >= TARGET_MIN_MS && duration <= TARGET_MAX_MS) {
-        // Already in the sweet spot — return immediately
-        return { params, durationMs: Math.round(duration) }
+    try {
+      // Phase 1 — exponential doubling of memorySize until we exceed the target
+      let lastFastMemory = MIN_MEMORY_KIB
+      let firstSlowMemory: number | null = null
+      let lastDuration = 0
+
+      let memory = MIN_MEMORY_KIB
+      while (memory <= MAX_MEMORY_KIB && isWithinBudget()) {
+        const params: Argon2Params = {
+          iterations: 3,
+          memorySize: memory,
+          parallelism,
+          hashLength: DEFAULT_HASH_LENGTH,
+        }
+        const duration = await benchmark(params)
+
+        if (duration >= TARGET_MIN_MS && duration <= TARGET_MAX_MS) {
+          return tuneIterations({ params, durationMs: Math.round(duration) }, startTime)
+        }
+
+        if (duration < TARGET_MIN_MS) {
+          lastFastMemory = memory
+          lastDuration = duration
+        } else {
+          firstSlowMemory = memory
+          break
+        }
+
+        memory *= 2
       }
 
-      if (duration < TARGET_MIN_MS) {
-        lastFastMemory = memory
-        lastDuration = duration
+      if (!isWithinBudget()) throw new Error('Calibration timeout during Phase 1')
+
+      let phase2Result: CalibrationResult
+
+      if (firstSlowMemory === null) {
+        phase2Result = {
+          params: {
+            iterations: 3,
+            memorySize: lastFastMemory,
+            parallelism,
+            hashLength: DEFAULT_HASH_LENGTH,
+          },
+          durationMs: Math.round(lastDuration),
+        }
       } else {
-        // duration > TARGET_MAX_MS
-        firstSlowMemory = memory
-        break
+        // Phase 2 — binary search between lastFastMemory and firstSlowMemory
+        let lo = lastFastMemory
+        let hi = firstSlowMemory
+        phase2Result = {
+          params: {
+            iterations: 3,
+            memorySize: lo,
+            parallelism,
+            hashLength: DEFAULT_HASH_LENGTH,
+          },
+          durationMs: Math.round(lastDuration),
+        }
+
+        while (hi - lo > BINARY_SEARCH_PRECISION_KIB && isWithinBudget()) {
+          const mid = Math.floor((lo + hi) / 2)
+          const params: Argon2Params = {
+            iterations: 3,
+            memorySize: mid,
+            parallelism,
+            hashLength: DEFAULT_HASH_LENGTH,
+          }
+          const duration = await benchmark(params)
+
+          if (duration >= TARGET_MIN_MS && duration <= TARGET_MAX_MS) {
+            return tuneIterations({ params, durationMs: Math.round(duration) }, startTime)
+          }
+
+          if (duration < TARGET_MIN_MS) {
+            lo = mid
+            phase2Result = { params, durationMs: Math.round(duration) }
+          } else {
+            hi = mid
+          }
+        }
       }
 
-      memory *= 2
-    }
+      if (!isWithinBudget()) throw new Error('Calibration timeout during Phase 2')
 
-    // If we hit the cap without exceeding the target, return the cap
-    if (firstSlowMemory === null) {
-      const capParams: Argon2Params = { ...DEFAULT_ARGON2_PARAMS, memorySize: lastFastMemory }
-      return { params: capParams, durationMs: Math.round(lastDuration) }
-    }
-
-    // Phase 2 — binary search between lastFastMemory and firstSlowMemory
-    let lo = lastFastMemory
-    let hi = firstSlowMemory
-    let bestResult: CalibrationResult = {
-      params: { ...DEFAULT_ARGON2_PARAMS, memorySize: lo },
-      durationMs: Math.round(lastDuration),
-    }
-
-    while (hi - lo > BINARY_SEARCH_PRECISION_KIB) {
-      const mid = Math.floor((lo + hi) / 2)
-      const params: Argon2Params = { ...DEFAULT_ARGON2_PARAMS, memorySize: mid }
-      const duration = await benchmark(params)
-
-      if (duration >= TARGET_MIN_MS && duration <= TARGET_MAX_MS) {
-        // In the sweet spot — return immediately
-        return { params, durationMs: Math.round(duration) }
-      }
-
-      if (duration < TARGET_MIN_MS) {
-        lo = mid
-        bestResult = { params, durationMs: Math.round(duration) }
-      } else {
-        hi = mid
+      // Phase 3 — Iteration tuning
+      return tuneIterations(phase2Result, startTime)
+    } catch {
+      return {
+        params: FALLBACK_ARGON2_PARAMS,
+        durationMs: 0, // Duration unknown for fallback
       }
     }
-
-    return bestResult
   },
 }
