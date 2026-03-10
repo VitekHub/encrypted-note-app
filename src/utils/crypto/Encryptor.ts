@@ -3,8 +3,12 @@ import { fromUint8Array, toUint8Array } from 'js-base64'
 /**
  * Utility class for AES-GCM (or compatible) encryption/decryption using the Web Crypto API.
  *
- * Handles random salt/IV generation, base64-encoded blob formatting (salt || iv || ciphertext),
+ * Handles random salt/IV generation, base64-encoded blob formatting (salt || [metadata] || iv || ciphertext),
  * and authenticated encryption with optional additional authenticated data (AAD).
+ *
+ * If `metadataLen` is provided during construction, the `encrypt` method can embed a fixed-size
+ * metadata block into the blob, which `parseBlob` will then extract. This is useful for storing
+ * parameters like key derivation (KDF) settings alongside the encrypted data.
  *
  * **Important security notes**:
  * - Always use a fresh random salt per encryption (for key derivation)
@@ -17,17 +21,20 @@ export class Encryptor {
   private readonly saltLen: number
   private readonly ivLen: number
   private readonly algorithm: string
+  private readonly metadataLen: number
 
   constructor(
     options: {
       saltLen?: number
       ivLen?: number
       algorithm?: string
+      metadataLen?: number
     } = {}
   ) {
     this.saltLen = options.saltLen ?? 16
     this.ivLen = options.ivLen ?? 12
     this.algorithm = options.algorithm ?? 'AES-GCM'
+    this.metadataLen = options.metadataLen ?? 0
   }
 
   /**
@@ -40,26 +47,30 @@ export class Encryptor {
   }
 
   /**
-   * Decodes a base64 string, validates it meets the minimum blob length and extracts salt, initialization vector and ciphertext.
+   * Decodes a base64 string, validates it meets the minimum blob length and extracts salt,
+   * optional metadata, initialization vector and ciphertext.
    * @param {string} value - The base64 string to decode
-   * @returns {Uint8Array} The decoded bytes
+   * @returns The decoded components: salt, iv, ciphertext, and metadata (if metadataLen > 0)
    * @throws If the input is not valid base64 or the blob is too short
    */
   public parseBlob(value: string): {
     salt: Uint8Array<ArrayBuffer>
+    metadata: Uint8Array<ArrayBuffer> | null
     iv: Uint8Array<ArrayBuffer>
     ciphertext: Uint8Array<ArrayBuffer>
   } {
     const bytes = toUint8Array(value)
-    const minBlobLen = this.saltLen + this.ivLen + 1
+    const minBlobLen = this.saltLen + this.metadataLen + this.ivLen + 1
     if (bytes.length < minBlobLen) throw new Error('Invalid encrypted format')
 
-    const offsetIv = this.saltLen
-    const offsetData = this.saltLen + this.ivLen
-    const salt = bytes.slice(0, offsetIv)
+    const offsetMeta = this.saltLen
+    const offsetIv = this.saltLen + this.metadataLen
+    const offsetData = offsetIv + this.ivLen
+    const salt = bytes.slice(0, offsetMeta)
+    const metadata = this.metadataLen > 0 ? bytes.slice(offsetMeta, offsetIv) : null
     const iv = bytes.slice(offsetIv, offsetData)
     const ciphertext = bytes.slice(offsetData)
-    return { salt, iv, ciphertext }
+    return { salt, metadata, iv, ciphertext }
   }
 
   /**
@@ -104,7 +115,7 @@ export class Encryptor {
    * Encrypts a string using AES-GCM (or the configured algorithm) with the provided key.
    *
    * The output is a base64-encoded string containing:
-   * `salt || iv || ciphertext`
+   * `salt || [metadata] || iv || ciphertext`
    *
    * The salt is **not** encrypted — it is prepended so the recipient can perform key derivation.
    * The `additionalData` (AAD) is authenticated but **not** encrypted.
@@ -113,10 +124,17 @@ export class Encryptor {
    * @param {CryptoKey} key - The AES-GCM encryption key (CryptoKey with 'encrypt' usage)
    * @param {Uint8Array} salt - The salt bytes (typically from `getRandomSalt()` or `parseBlob()`)
    * @param {string} aad - Additional authenticated data (will be verified during decryption)
-   * @returns {string} Base64-encoded string: salt + IV + ciphertext
+   * @param {Uint8Array} [metadata] - Optional metadata bytes to embed (must match metadataLen)
+   * @returns {string} Base64-encoded string: salt + [metadata] + IV + ciphertext
    * @throws {Error} If encryption fails (e.g. invalid key, algorithm mismatch)
    */
-  public async encrypt(data: string, key: CryptoKey, salt: Uint8Array<ArrayBuffer>, aad: string): Promise<string> {
+  public async encrypt(
+    data: string,
+    key: CryptoKey,
+    salt: Uint8Array<ArrayBuffer>,
+    aad: string,
+    metadata?: Uint8Array
+  ): Promise<string> {
     const iv = crypto.getRandomValues(new Uint8Array(this.ivLen))
     const ciphertext = await crypto.subtle.encrypt(
       {
@@ -128,7 +146,10 @@ export class Encryptor {
       this.textToBuffer(data)
     )
 
-    return this.concatToBase64(salt, iv, new Uint8Array(ciphertext))
+    const parts: Uint8Array[] = [salt]
+    if (metadata) parts.push(metadata)
+    parts.push(iv, new Uint8Array(ciphertext))
+    return this.concatToBase64(...parts)
   }
 
   /**
