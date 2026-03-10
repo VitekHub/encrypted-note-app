@@ -202,4 +202,14 @@ export const argon2CalibrationService: Argon2CalibrationService = {
       }
     }
   },
+
+  /** @inheritdoc */
+  async runBenchmark(params: Argon2Params): Promise<CalibrationResult> {
+    try {
+      const duration = await benchmark(params)
+      return { params, durationMs: Math.round(duration) }
+    } catch {
+      return { params, durationMs: -1 }
+    }
+  },
 }

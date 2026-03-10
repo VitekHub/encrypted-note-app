@@ -53,7 +53,8 @@
 
       <div class="actions">
         <button class="btn-secondary" :disabled="calibrating || applyingCalibration" @click="runCalibration">
-          {{ calibrating ? 'Calibrating...' : 'Benchmark current device' }}
+          <span v-if="calibrating" class="spinner-icon"></span>
+          {{ calibrating ? 'Calibrating...' : 'Auto-calibrate for this device' }}
         </button>
       </div>
 
@@ -63,11 +64,54 @@
         <ul>
           <li>Memory: {{ Math.round(suggestedCryptoParams.params.memorySize / 1024) }} MiB</li>
           <li>Iterations: {{ suggestedCryptoParams.params.iterations }}</li>
+          <li>Parallelism: {{ suggestedCryptoParams.params.parallelism }}</li>
           <li>Estimated time: {{ (suggestedCryptoParams.durationMs / 1000).toFixed(2) }}s</li>
         </ul>
         <button class="btn-primary btn-sm" :disabled="applyingCalibration" @click="openApplyCalibrationDialog">
           Apply & Strengthen Key Wrapper
         </button>
+      </div>
+
+      <div class="benchmark-tool">
+        <hr />
+        <h4>Manual Benchmark Tool</h4>
+        <p>Run predefined configurations to see how your device performs. Bypasses target time constraints.</p>
+        <div class="benchmark-controls">
+          <select v-model="benchmarkMode" class="timeout-select">
+            <option v-for="mode in benchmarkModes" :key="mode.value" :value="mode.value">
+              {{ mode.label }}
+            </option>
+          </select>
+          <button class="btn-secondary" :disabled="benchmarking" @click="handleRunFullBenchmark">
+            <span v-if="benchmarking" class="spinner-icon"></span>
+            {{ benchmarking ? 'Benchmarking...' : 'Run Benchmarks' }}
+          </button>
+        </div>
+
+        <div v-if="benchmarkResults.length > 0" class="benchmark-results">
+          <table>
+            <thead>
+              <tr>
+                <th>Memory</th>
+                <th>Iter</th>
+                <th>Parallel</th>
+                <th>Time (ms)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(res, i) in benchmarkResults" :key="i">
+                <td>{{ Math.round(res.params.memorySize / 1024) }} MiB</td>
+                <td>{{ res.params.iterations }}</td>
+                <td>{{ res.params.parallelism }}</td>
+                <td :class="{ 'slow-result': res.durationMs > 2000 }">
+                  <span v-if="res.durationMs === 0" class="spinner-icon"></span>
+                  <span v-else-if="res.durationMs === -1" class="error">Out of Mem.</span>
+                  <span v-else>{{ res.durationMs }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -141,14 +185,14 @@
 import { ref, nextTick } from 'vue'
 import { cryptoService, type CalibrationResult } from '../utils/crypto/cryptoService'
 import { useNotification } from '../composables/useNotification'
-import { useSettings } from '../composables/useSettings'
+import { useSettings, type BenchmarkMode } from '../composables/useSettings'
 
 const emit = defineEmits<{
   close: []
 }>()
 
 const { showNotification } = useNotification()
-const { settings } = useSettings()
+const { settings, benchmarkResults, runFullBenchmarks } = useSettings()
 
 const timeoutOptions = [
   { value: 1, label: '1 minute' },
@@ -159,11 +203,18 @@ const timeoutOptions = [
   { value: 0, label: 'Never' },
 ]
 
+const benchmarkModes: { value: BenchmarkMode; label: string }[] = [
+  { value: 'Low', label: 'Low (4 tests)' },
+  { value: 'Medium', label: 'Medium (8 tests)' },
+  { value: 'High', label: 'High (15 tests)' },
+]
+
 const showChangePassword = ref(false)
 const showRotateRsa = ref(false)
 const showApplyCalibration = ref(false)
 const loading = ref(false)
 const calibrating = ref(false)
+const benchmarking = ref(false)
 const applyingCalibration = ref(false)
 const error = ref('')
 
@@ -172,6 +223,7 @@ const newPassword = ref('')
 const confirmPassword = ref('')
 const rsaPassword = ref('')
 const calibrationPassword = ref('')
+const benchmarkMode = ref<BenchmarkMode>('Low')
 
 const suggestedCryptoParams = ref<CalibrationResult | null>(null)
 
@@ -214,6 +266,9 @@ async function openApplyCalibrationDialog() {
 async function runCalibration() {
   calibrating.value = true
   error.value = ''
+  // Give the browser a moment to paint the spinner
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
   try {
     suggestedCryptoParams.value = await cryptoService.calibrateToDeviceCapability()
     showNotification('Calibration complete!', 'success')
@@ -221,6 +276,20 @@ async function runCalibration() {
     error.value = 'Calibration failed'
   } finally {
     calibrating.value = false
+  }
+}
+
+async function handleRunFullBenchmark() {
+  benchmarking.value = true
+  error.value = ''
+
+  try {
+    await runFullBenchmarks(benchmarkMode.value)
+    showNotification(`Completed ${benchmarkResults.value.length} benchmarks`, 'success')
+  } catch {
+    error.value = 'Benchmarking failed'
+  } finally {
+    benchmarking.value = false
   }
 }
 
@@ -331,6 +400,11 @@ async function handleRotateRsa() {
   &.suspicious {
     border-color: #fca5a5;
     background: linear-gradient(135deg, rgba(254, 226, 226, 0.3) 0%, rgba(255, 245, 245, 0.3) 100%);
+
+    &:hover {
+      border-color: #ee6d6d;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
 
     h3 {
       color: #7f1d1d;
@@ -718,5 +792,95 @@ async function handleRotateRsa() {
 .btn-sm {
   padding: 6px 12px;
   font-size: 0.75rem;
+}
+
+.spinner-icon {
+  display: inline-block;
+  width: 120px;
+  height: 120px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.benchmark-tool {
+  margin-top: 24px;
+  padding-top: 24px;
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin-bottom: 24px;
+  }
+
+  h4 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--color-heading);
+  }
+
+  p {
+    margin-bottom: 16px;
+  }
+}
+
+.benchmark-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+
+  .timeout-select {
+    flex: 1;
+    max-width: 150px;
+  }
+}
+
+.benchmark-results {
+  margin-top: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+
+    th,
+    td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    th {
+      background: var(--color-bg);
+      font-weight: 600;
+      color: var(--color-muted);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .slow-result,
+    .error {
+      color: #dc2626;
+      font-weight: 600;
+    }
+  }
 }
 </style>

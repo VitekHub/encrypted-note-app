@@ -47,6 +47,15 @@ export interface Argon2CalibrationService {
    * @returns {Promise<CalibrationResult>} The calibrated parameters and measured duration
    */
   calibrate(): Promise<CalibrationResult>
+
+  /**
+   * Runs a single Argon2id derivation with the given parameters and
+   * returns the measured duration. Unbound by target time constraints.
+   *
+   * @param {Argon2Params} params - The Argon2id parameters to benchmark
+   * @returns {Promise<CalibrationResult>} The parameters and measured duration
+   */
+  runBenchmark(params: Argon2Params): Promise<CalibrationResult>
 }
 
 /**

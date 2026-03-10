@@ -1,4 +1,4 @@
-import { CalibrationResult } from '../argon2Calibration'
+import type { CalibrationResult } from '../argon2Calibration'
 import type { Argon2Params } from '../keys/symmetric/passwordDerived'
 
 /**
@@ -105,7 +105,7 @@ export interface CryptoService {
   /**
    * Calibrates Argon2id parameters to the current device's capabilities and updates the default parameters.
    *
-   * @returns A promise that resolves to the calibrated Argon2id parameters.
+   * @returns {Promise<CalibrationResult>} The calibrated parameters
    */
   calibrateToDeviceCapability(): Promise<CalibrationResult>
 
