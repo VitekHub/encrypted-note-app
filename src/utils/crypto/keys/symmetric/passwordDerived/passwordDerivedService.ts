@@ -16,8 +16,8 @@ import { FALLBACK_ARGON2_PARAMS } from '../../../argon2Calibration'
 const ARGON2_METADATA_LEN = 16
 
 export class PasswordDerivedServiceImpl implements PasswordDerivedService {
-  private readonly params: Argon2Params
-  private readonly metadata: Uint8Array
+  private params: Argon2Params
+  private metadata: Uint8Array
   private readonly encryptor: Encryptor
 
   constructor(argon2Params?: Partial<Argon2Params>) {
@@ -34,18 +34,17 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
    * This function is asynchronous because key derivation involves cryptographic operations.
    * @param {string} password - The password string
    * @param {Uint8Array} salt - The salt Uint8Array (must be provided; generated randomly for encryption)
-   * @param {Argon2Params} params - The Argon2id parameters to use for key derivation
    * @returns {Promise<CryptoKey>} Promise resolving to the derived CryptoKey
    */
-  private async deriveKey(password: string, salt: Uint8Array, params: Argon2Params): Promise<CryptoKey> {
+  private async deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     // Use Argon2id to derive a raw key from the password and salt.
     const hashHex = await argon2id({
       password,
       salt,
-      iterations: params.iterations,
-      memorySize: params.memorySize,
-      parallelism: params.parallelism,
-      hashLength: params.hashLength,
+      iterations: this.params.iterations,
+      memorySize: this.params.memorySize,
+      parallelism: this.params.parallelism,
+      hashLength: this.params.hashLength,
       outputType: 'hex',
     })
 
@@ -92,7 +91,7 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
   async encrypt(plaintext: string, password: string, aad: string): Promise<string> {
     const salt = this.encryptor.getRandomSalt()
     // Derive the encryption key from password and salt using Argon2id.
-    const key = await this.deriveKey(password, salt, this.params)
+    const key = await this.deriveKey(password, salt)
     // Encrypt the plaintext using AES-GCM with the derived key and IV.
     return this.encryptor.encrypt(plaintext, key, salt, aad, this.metadata)
   }
@@ -101,10 +100,10 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
   async decrypt(encryptedBlob: string, password: string, aad: string): Promise<string> {
     // Decode, validate the base64 blob and slice to salt, metadata, iv and ciphertext
     const { salt, metadata, iv, ciphertext } = this.encryptor.parseBlob(encryptedBlob)
-    // Use the params stored in the blob so we can always decrypt regardless of current defaults.
-    const blobParams = metadata ? this.deserializeArgon2Params(metadata) : this.params
+    // Update params and metadata if needed
+    this.updateParams(metadata)
     // Derive the decryption key using the same password and extracted salt.
-    const key = await this.deriveKey(password, salt, blobParams)
+    const key = await this.deriveKey(password, salt)
     // Decrypt the ciphertext using AES-GCM with the derived key and IV.
     return this.encryptor.decrypt(ciphertext, key, iv, aad)
   }
@@ -112,6 +111,28 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
   /** @inheritdoc */
   isEncrypted(value: string): boolean {
     return this.encryptor.isEncrypted(value)
+  }
+
+  /** @inheritdoc */
+  getParams(): Argon2Params {
+    return this.params
+  }
+
+  /** @inheritdoc */
+  setParams(params: Argon2Params): void {
+    this.params = params
+    this.metadata = this.serializeArgon2Params(params)
+  }
+
+  /**
+   * Updates the Argon2 parameters and metadata if the provided metadata is different from the current one.
+   * @param metadata - The new metadata to use for key derivation
+   */
+  private updateParams(metadata: Uint8Array | null): void {
+    if (metadata) {
+      this.params = this.deserializeArgon2Params(metadata)
+      this.metadata = metadata
+    }
   }
 }
 

@@ -1,3 +1,5 @@
+import type { Argon2Params } from '../../../argon2Calibration'
+
 /**
  * Service for encrypting and decrypting data using password-derived keys.
  *
@@ -43,4 +45,15 @@ export interface PasswordDerivedService {
    * @returns True if the value can be parsed as an encrypted blob, False otherwise.
    */
   isEncrypted(value: string): boolean
+
+  /**
+   * Gets the current Argon2 parameters used by this service.
+   */
+  getParams(): Argon2Params
+
+  /**
+   * Sets the Argon2 parameters to be used for encryption.
+   * @param params - The new parameters
+   */
+  setParams(params: Argon2Params): void
 }

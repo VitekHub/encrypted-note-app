@@ -1,18 +1,8 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
-import { passwordDerivedService, PasswordDerivedServiceImpl } from '../../../keys/symmetric/passwordDerived'
-import type { Argon2Params } from '../../../keys/symmetric/passwordDerived'
+import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
 import { masterKeyService } from '../../../keys/symmetric/master'
 import { cryptoKeyStorage } from '../../../keyStorage'
 import type { RsaKeyService } from './types'
-
-/**
- * Returns the password-derived service to use for encryption.
- * When custom Argon2 params are provided, a fresh instance is created;
- * otherwise falls back to the default singleton.
- */
-function getEncryptionService(argon2Params?: Argon2Params) {
-  return argon2Params ? new PasswordDerivedServiceImpl(argon2Params) : passwordDerivedService
-}
 
 /** Key name under which the RSA public key (SPKI format, base64) is stored */
 const RSA_PUBLIC_KEY_NAME = 'rsa_public_key_spki'
@@ -48,16 +38,15 @@ export const rsaKeyService: RsaKeyService = {
   },
 
   /** @inheritdoc */
-  async storeKeys(keyPair: CryptoKeyPair, password: string, argon2Params?: Argon2Params): Promise<void> {
+  async storeKeys(keyPair: CryptoKeyPair, password: string): Promise<void> {
     // 1. Export keys to base64
     const exportedPublicKey = await crypto.subtle.exportKey('spki', keyPair.publicKey)
     const exportedPrivateKey = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
     const publicKeyBase64 = fromUint8Array(new Uint8Array(exportedPublicKey))
     const privateKeyBase64 = fromUint8Array(new Uint8Array(exportedPrivateKey))
 
-    // 2. Encrypt private key using passwordDerivedService (with optional calibrated params)
-    const service = getEncryptionService(argon2Params)
-    const encryptedPrivateKey = await service.encrypt(privateKeyBase64, password, RSA_PRIVATE_KEY_AAD)
+    // 2. Encrypt private key using passwordDerivedService
+    const encryptedPrivateKey = await passwordDerivedService.encrypt(privateKeyBase64, password, RSA_PRIVATE_KEY_AAD)
 
     // 3. Store both keys
     await Promise.all([
@@ -115,21 +104,20 @@ export const rsaKeyService: RsaKeyService = {
   },
 
   /** @inheritdoc */
-  async updatePassword(oldPassword: string, newPassword: string, argon2Params?: Argon2Params): Promise<void> {
+  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
     const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
     if (!stored) throw new Error('RSA private key not found in storage')
 
     // Decrypt with the default singleton (reads params from blob metadata)
     const privateKeyBase64 = await passwordDerivedService.decrypt(stored, oldPassword, RSA_PRIVATE_KEY_AAD)
-    // Re-encrypt with calibrated params (if provided) for a stronger wrapper
-    const service = getEncryptionService(argon2Params)
-    const reEncrypted = await service.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
+    // Re-encrypt with currently active params for a stronger wrapper
+    const reEncrypted = await passwordDerivedService.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
 
     await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, reEncrypted)
   },
 
   /** @inheritdoc */
-  async rotateKeys(password: string, argon2Params?: Argon2Params): Promise<void> {
+  async rotateKeys(password: string): Promise<void> {
     // Backup old keys
     const oldEncryptedPrivate = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
     const oldPublic = await cryptoKeyStorage.get(RSA_PUBLIC_KEY_NAME)
@@ -147,7 +135,7 @@ export const rsaKeyService: RsaKeyService = {
       // Re-wrap master key with new public key and store keys
       const newWrappedMasterKey = await masterKeyService.wrapKey(oldMasterKey, newKeyPair.publicKey)
       await masterKeyService.storeKey(newWrappedMasterKey)
-      await rsaKeyService.storeKeys(newKeyPair, password, argon2Params)
+      await rsaKeyService.storeKeys(newKeyPair, password)
 
       // Test: load new private key and unwrap master key
       const newPrivateKey = await rsaKeyService.loadPrivateKey(password)
