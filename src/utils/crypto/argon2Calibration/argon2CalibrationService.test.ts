@@ -119,15 +119,16 @@ describe('argon2CalibrationService.calibrate()', () => {
     expect(result.durationMs).toBe(1480)
   })
 
-  it('early-accepts when already very close after phase 1 or 2', async () => {
-    mockBenchmark(420) // 64 MiB – too fast
+  it('early-accepts when already very close after reaching max memory', async () => {
+    mockBenchmark(200) // 64 MiB
+    mockBenchmark(300) // 128 MiB
+    mockBenchmark(450) // 256 MiB
+    mockBenchmark(750) // 512 MiB (Max memory reached, but < 800 ms)
 
-    // 128 MiB – just above EARLY_ACCEPT_BELOW, should early-return from tuneIterations
-    mockBenchmark(750) // 750 > 736 → early accept
-
+    // Phase 3 — tuneIterations should early-accept 750 because it's > EARLY_ACCEPT_BELOW (736)
     const result = await argon2CalibrationService.calibrate()
 
-    expect(result.params.memorySize).toBe(128 * 1024)
+    expect(result.params.memorySize).toBe(512 * 1024)
     expect(result.params.iterations).toBe(3)
     expect(result.durationMs).toBe(750)
   })
@@ -165,9 +166,9 @@ describe('argon2CalibrationService.calibrate()', () => {
     mockBenchmark(2200) // 512 → first slow
 
     // Now burn time in binary search (lo=256 @680, hi=512 @2200)
-    // Each call ~1400–1500 ms → 9–10 calls will exceed 15 s
+    // Use values outside the [800, 2000] range to avoid early acceptance
     for (let i = 0; i < 10; i++) {
-      mockBenchmark(1480)
+      mockBenchmark(2100)
     }
 
     const result = await argon2CalibrationService.calibrate()
