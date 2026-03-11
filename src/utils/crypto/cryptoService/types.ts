@@ -103,6 +103,14 @@ export interface CryptoService {
    */
   updatePassword(oldPassword: string, newPassword: string): Promise<void>
 
+  /**
+   * Updates the Argon2 parameters used for key derivation.
+   *
+   * @param password - The user's master password.
+   * @param newParams - The new Argon2 parameters to use.
+   * @returns A promise that resolves once the parameters have been updated.
+   * @throws {Error} If no private key is found in storage or decryption fails.
+   */
   updateParams(password: string, newParams: Argon2Params): Promise<void>
 
   /**
