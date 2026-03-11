@@ -1,5 +1,4 @@
-import type { CalibrationResult } from '../argon2Calibration'
-import type { Argon2Params } from '../keys/symmetric/passwordDerived'
+import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
 
 /**
  * High-level cryptographic service that orchestrates the full key setup,

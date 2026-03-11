@@ -4,8 +4,7 @@ import { fieldKeyService } from '../keys/symmetric/field'
 import { loginLockoutService } from '../../loginLockoutService'
 import { passwordDerivedService } from '../keys/symmetric/passwordDerived'
 import { argon2CalibrationService } from '../argon2Calibration'
-import type { CalibrationResult } from '../argon2Calibration'
-import type { Argon2Params } from '../keys/symmetric/passwordDerived'
+import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
 import type { CryptoService } from './types'
 
 function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
