@@ -17,7 +17,7 @@ function getAdditionalAuthenticatedData(userId: string, fieldId: string): string
  */
 export const cryptoService: CryptoService = {
   /** @inheritdoc */
-  async setup(password: string): Promise<{ masterKey: CryptoKey; argon2Params: Argon2Params }> {
+  async setup(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }> {
     // Calibrate Argon2id for this device to find strongest viable params
     const { params } = await argon2CalibrationService.calibrate()
     passwordDerivedService.setParams(params)
@@ -30,12 +30,12 @@ export const cryptoService: CryptoService = {
 
     return {
       masterKey: await masterKeyService.convertToDerivable(generatedMasterKey),
-      argon2Params: params,
+      params,
     }
   },
 
   /** @inheritdoc */
-  async unlock(password: string): Promise<CryptoKey> {
+  async unlock(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }> {
     await loginLockoutService.checkLockout()
 
     let unwrappedMasterKey: CryptoKey
@@ -50,7 +50,10 @@ export const cryptoService: CryptoService = {
     }
 
     await loginLockoutService.reset()
-    return masterKeyService.convertToDerivable(unwrappedMasterKey)
+    return {
+      masterKey: await masterKeyService.convertToDerivable(unwrappedMasterKey),
+      params: passwordDerivedService.getParams(),
+    }
   },
 
   /** @inheritdoc */
@@ -82,15 +85,18 @@ export const cryptoService: CryptoService = {
   },
 
   /** @inheritdoc */
-  async updatePassword(oldPassword, newPassword): Promise<void> {
-    await rsaKeyService.updatePassword(oldPassword, newPassword)
+  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await rsaKeyService.reEncryptPrivateKey(oldPassword, newPassword)
+  },
+
+  /** @inheritdoc */
+  async updateParams(password: string, newParams: Argon2Params): Promise<void> {
+    await rsaKeyService.reEncryptPrivateKey(password, password, newParams)
   },
 
   /** @inheritdoc */
   async calibrateToDeviceCapability(): Promise<CalibrationResult> {
-    const result = await argon2CalibrationService.calibrate()
-    passwordDerivedService.setParams(result.params)
-    return result
+    return argon2CalibrationService.calibrate()
   },
 
   /** @inheritdoc */

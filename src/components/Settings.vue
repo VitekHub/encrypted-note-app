@@ -301,7 +301,7 @@ async function handleApplyCalibration() {
 
   try {
     // Re-encrypt the private key with the SAME password but NEW argon2Params
-    await cryptoService.updatePassword(calibrationPassword.value, calibrationPassword.value)
+    await cryptoService.updateParams(calibrationPassword.value, suggestedCryptoParams.value.params)
 
     // Update the stored settings so future rotations/password changes use the new params
     settings.value.argon2Params = suggestedCryptoParams.value.params

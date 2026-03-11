@@ -84,10 +84,15 @@ async function runFullBenchmarks(mode: BenchmarkMode): Promise<void> {
   }
 }
 
+function resetSettings() {
+  settings.value = { ...defaultSettings }
+}
+
 export function useSettings() {
   return {
     settings,
     benchmarkResults,
     runFullBenchmarks,
+    resetSettings,
   }
 }

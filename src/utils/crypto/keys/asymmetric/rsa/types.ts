@@ -1,3 +1,5 @@
+import type { Argon2Params } from '../../../argon2Calibration/types'
+
 /**
  * Service that manages the full lifecycle of an RSA-OAEP 2048-bit key pair:
  * generation, persistent storage, loading, existence checks, deletion, and
@@ -75,10 +77,11 @@ export interface RsaKeyService {
    *   existing private key blob.
    * @param newPassword - The new master password used to re-encrypt the
    *   private key blob.
+   * @param newParams - The new Argon2 parameters to use for re-encryption.
    * @returns A promise that resolves once the rotated key blob has been saved.
    * @throws {Error} If no private key is found in storage or decryption fails.
    */
-  updatePassword(oldPassword: string, newPassword: string): Promise<void>
+  reEncryptPrivateKey(oldPassword: string, newPassword: string, newParams?: Argon2Params): Promise<void>
 
   /**
    * Rotates the RSA key pair: generates a new pair, re-wraps the master key

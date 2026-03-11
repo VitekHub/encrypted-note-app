@@ -65,7 +65,7 @@ const STORAGE_KEY = 'app-note'
 
 const { saveNote, loadNote, clearNote, loading, error } = useEncryptedNote(STORAGE_KEY)
 const { setMasterKey, clearMasterKey } = useSessionKeys()
-const { settings } = useSettings()
+const { settings, resetSettings } = useSettings()
 
 useAutoLock(handleLock)
 
@@ -87,15 +87,16 @@ async function handleUnlock() {
   loading.value = true
   try {
     if (signingUp.value) {
-      const { masterKey, argon2Params } = await cryptoService.setup(passwordInput.value)
+      const { masterKey, params } = await cryptoService.setup(passwordInput.value)
       setMasterKey(masterKey)
       // Save the calibrated params to settings so future encryptions (e.g. settings password change) use them
-      settings.value.argon2Params = argon2Params
+      settings.value.argon2Params = params
       keysExist.value = true
       unlocked.value = true
     } else {
-      const key = await cryptoService.unlock(passwordInput.value)
-      setMasterKey(key)
+      const { masterKey, params } = await cryptoService.unlock(passwordInput.value)
+      setMasterKey(masterKey)
+      settings.value.argon2Params = params
       const result = await loadNote()
       if (result !== null) {
         noteText.value = result
@@ -123,6 +124,7 @@ async function handleSave() {
 function handleLock() {
   cryptoService.lock()
   clearMasterKey()
+  resetSettings()
   unlocked.value = false
   noteText.value = ''
   passwordInput.value = ''
