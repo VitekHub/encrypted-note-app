@@ -1,2 +1,2 @@
 export type { PasswordDerivedService } from './types'
-export { passwordDerivedService } from './passwordDerivedService'
+export { passwordDerivedService, PasswordDerivedServiceImpl } from './passwordDerivedService'

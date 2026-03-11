@@ -3,6 +3,7 @@ import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
 import { masterKeyService } from '../../../keys/symmetric/master'
 import { cryptoKeyStorage } from '../../../keyStorage'
 import type { RsaKeyService } from './types'
+import type { Argon2Params } from '../../../argon2Calibration/types'
 
 /** Key name under which the RSA public key (SPKI format, base64) is stored */
 const RSA_PUBLIC_KEY_NAME = 'rsa_public_key_spki'
@@ -104,11 +105,17 @@ export const rsaKeyService: RsaKeyService = {
   },
 
   /** @inheritdoc */
-  async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
+  async reEncryptPrivateKey(oldPassword: string, newPassword: string, newParams?: Argon2Params): Promise<void> {
     const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
     if (!stored) throw new Error('RSA private key not found in storage')
 
+    // Decrypt with the default singleton (reads params from blob metadata)
     const privateKeyBase64 = await passwordDerivedService.decrypt(stored, oldPassword, RSA_PRIVATE_KEY_AAD)
+
+    if (newParams) {
+      passwordDerivedService.setParams(newParams)
+    }
+    // Re-encrypt with currently active params for a stronger wrapper
     const reEncrypted = await passwordDerivedService.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
 
     await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, reEncrypted)

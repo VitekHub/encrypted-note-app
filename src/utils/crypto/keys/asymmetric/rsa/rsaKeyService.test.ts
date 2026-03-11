@@ -128,12 +128,12 @@ describe('deleteKeys', () => {
   })
 })
 
-describe('updatePassword', () => {
+describe('reEncryptPrivateKey', () => {
   it('changes the stored encrypted private key blob', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
     const before = store.get('rsa_private_key_encrypted')
-    await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
+    await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
     const after = store.get('rsa_private_key_encrypted')
     expect(after).not.toBe(before)
   })
@@ -141,7 +141,7 @@ describe('updatePassword', () => {
   it('allows loading the private key with the new password', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
+    await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
     const key = await rsaKeyService.loadPrivateKey(NEW_PASSWORD)
     expect(key.type).toBe('private')
   })
@@ -149,12 +149,12 @@ describe('updatePassword', () => {
   it('rejects loading the private key with the old password after rotation', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
+    await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
     await expect(rsaKeyService.loadPrivateKey(PASSWORD)).rejects.toThrow()
   })
 
   it('throws when no private key is in storage', async () => {
-    await expect(rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)).rejects.toThrow()
+    await expect(rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)).rejects.toThrow()
   })
 })
 
@@ -175,7 +175,7 @@ describe('round-trip lifecycle', () => {
   it('password rotation round-trip', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    await rsaKeyService.updatePassword(PASSWORD, NEW_PASSWORD)
+    await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
 
     const key = await rsaKeyService.loadPrivateKey(NEW_PASSWORD)
     expect(key.type).toBe('private')

@@ -2,6 +2,9 @@ import { rsaKeyService } from '../keys/asymmetric/rsa'
 import { masterKeyService } from '../keys/symmetric/master'
 import { fieldKeyService } from '../keys/symmetric/field'
 import { loginLockoutService } from '../../loginLockoutService'
+import { passwordDerivedService } from '../keys/symmetric/passwordDerived'
+import { argon2CalibrationService } from '../argon2Calibration'
+import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
 import type { CryptoService } from './types'
 
 function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
@@ -13,18 +16,25 @@ function getAdditionalAuthenticatedData(userId: string, fieldId: string): string
  */
 export const cryptoService: CryptoService = {
   /** @inheritdoc */
-  async setup(password: string): Promise<CryptoKey> {
+  async setup(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }> {
+    // Calibrate Argon2id for this device to find strongest viable params
+    const { params } = await argon2CalibrationService.calibrate()
+    passwordDerivedService.setParams(params)
+
     const rsaKeyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(rsaKeyPair, password)
     const generatedMasterKey = await masterKeyService.generateKey()
     const wrappedMasterKey = await masterKeyService.wrapKey(generatedMasterKey, rsaKeyPair.publicKey)
     await masterKeyService.storeKey(wrappedMasterKey)
 
-    return masterKeyService.convertToDerivable(generatedMasterKey)
+    return {
+      masterKey: await masterKeyService.convertToDerivable(generatedMasterKey),
+      params,
+    }
   },
 
   /** @inheritdoc */
-  async unlock(password: string): Promise<CryptoKey> {
+  async unlock(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }> {
     await loginLockoutService.checkLockout()
 
     let unwrappedMasterKey: CryptoKey
@@ -39,7 +49,10 @@ export const cryptoService: CryptoService = {
     }
 
     await loginLockoutService.reset()
-    return masterKeyService.convertToDerivable(unwrappedMasterKey)
+    return {
+      masterKey: await masterKeyService.convertToDerivable(unwrappedMasterKey),
+      params: passwordDerivedService.getParams(),
+    }
   },
 
   /** @inheritdoc */
@@ -72,7 +85,17 @@ export const cryptoService: CryptoService = {
 
   /** @inheritdoc */
   async updatePassword(oldPassword: string, newPassword: string): Promise<void> {
-    await rsaKeyService.updatePassword(oldPassword, newPassword)
+    await rsaKeyService.reEncryptPrivateKey(oldPassword, newPassword)
+  },
+
+  /** @inheritdoc */
+  async updateParams(password: string, newParams: Argon2Params): Promise<void> {
+    await rsaKeyService.reEncryptPrivateKey(password, password, newParams)
+  },
+
+  /** @inheritdoc */
+  async calibrateToDeviceCapability(): Promise<CalibrationResult> {
+    return argon2CalibrationService.calibrate()
   },
 
   /** @inheritdoc */

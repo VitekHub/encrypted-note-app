@@ -1,3 +1,5 @@
+import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
+
 /**
  * High-level cryptographic service that orchestrates the full key setup,
  * unlock, and teardown flows. Acts as a facade over RSA and Master Key services.
@@ -20,10 +22,11 @@ export interface CryptoService {
    * - Returns the unwrapped Master Key for use during this session
    *
    * @param password - The user's master password for protecting the RSA private key
-   * @returns A promise that resolves to the unwrapped Master Key (CryptoKey)
+   * @returns A promise that resolves to an object containing the unwrapped
+   *          Master Key (CryptoKey) and the calibrated Argon2id parameters used.
    * @throws {Error} If key generation or storage fails
    */
-  setup(password: string): Promise<CryptoKey>
+  setup(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }>
 
   /**
    * Called during login: Loads and unwraps both RSA and Master Keys.
@@ -35,10 +38,11 @@ export interface CryptoService {
    * - Returns the unwrapped Master Key for use during this session
    *
    * @param password - The user's master password for decrypting the RSA private key
-   * @returns A promise that resolves to the unwrapped Master Key (CryptoKey)
+   * @returns A promise that resolves to an object containing the unwrapped
+   *          Master Key (CryptoKey) and the calibrated Argon2id parameters used.
    * @throws {Error} If loading, decryption, or unwrapping fails (e.g., wrong password)
    */
-  unlock(password: string): Promise<CryptoKey>
+  unlock(password: string): Promise<{ masterKey: CryptoKey; params: Argon2Params }>
 
   /**
    * Checks whether the full key setup is complete (both RSA keys and Master Key exist).
@@ -97,6 +101,23 @@ export interface CryptoService {
    * @throws {Error} If no private key is found in storage or decryption fails.
    */
   updatePassword(oldPassword: string, newPassword: string): Promise<void>
+
+  /**
+   * Updates the Argon2 parameters used for key derivation.
+   *
+   * @param password - The user's master password.
+   * @param newParams - The new Argon2 parameters to use.
+   * @returns A promise that resolves once the parameters have been updated.
+   * @throws {Error} If no private key is found in storage or decryption fails.
+   */
+  updateParams(password: string, newParams: Argon2Params): Promise<void>
+
+  /**
+   * Calibrates Argon2id parameters to the current device's capabilities.
+   *
+   * @returns {Promise<CalibrationResult>} The calibrated parameters
+   */
+  calibrateToDeviceCapability(): Promise<CalibrationResult>
 
   /**
    * Permanently deletes all cryptographic keys from storage.
