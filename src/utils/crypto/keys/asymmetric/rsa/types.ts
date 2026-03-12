@@ -1,9 +1,9 @@
 import type { Argon2Params } from '../../../argon2Calibration/types'
 
 /**
- * Service that manages the full lifecycle of an RSA-OAEP 2048-bit key pair:
- * generation, persistent storage, loading, existence checks, deletion, and
- * password rotation of the encrypted private key.
+ * Service that manages the full lifecycle of a secure RSA-OAEP key pair:
+ * generation (targeting 4096-bit), persistent storage, loading, existence checks,
+ * deletion, and password rotation of the encrypted private key.
  *
  * All methods are asynchronous and rely on the Web Crypto API together with
  * the application's `cryptoKeyStorage` and `encryptField`/`decryptField`
@@ -11,7 +11,8 @@ import type { Argon2Params } from '../../../argon2Calibration/types'
  */
 export interface RsaKeyService {
   /**
-   * Generates a fresh RSA-OAEP 2048-bit key pair and returns the raw CryptoKey objects.
+   * Generates a fresh RSA-OAEP key pair (4096-bit with fallback to 2048 if needed)
+   * and returns the raw CryptoKey objects.
    *
    * @returns A promise that resolves to an {@link CryptoKeyPair} containing the raw unencrypted keys.
    */

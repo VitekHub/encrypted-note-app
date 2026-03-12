@@ -25,7 +25,7 @@ export interface MasterKeyService {
    * Wraps unwrapped Master key with raw RSA public key.
    *
    * @param {CryptoKey} unwrappedMasterKey - The raw Master Key object.
-   * @param {CryptoKey} rsaPublicKey - RSA public key (from RSA-2048 keypair) used to wrap the Master Key.
+   * @param {CryptoKey} rsaPublicKey - RSA public key (from RSA-4096 keypair) used to wrap the Master Key.
    *        Must have RSA-OAEP usage enabled.
    * @returns {Promise<string>} A promise that resolves to the base64 wrapped Master key.
    * @throws {Error} If wrap operation fails.

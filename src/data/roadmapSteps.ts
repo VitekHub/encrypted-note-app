@@ -165,12 +165,11 @@ export const roadmapSteps: RoadmapStep[] = [
     ],
   },
   {
-    title: 'Upgrade RSA Key Size & Rotation Best Practices',
+    title: 'Upgrade RSA Key Size',
     goal: 'Move beyond aging RSA-2048 toward future-proof key wrapping.',
     flow: [
-      'During RSA rotation, generate 3072 or 4096-bit keys instead of 2048',
-      'Add UI warning / migration path for users with old 2048-bit wrapped master keys',
-      'Ensure old private key is securely deleted after successful rotation test',
+      'During RSA key generation, generate 4096-bit keys instead of 2048',
+      'For compatibility, try first 4096, if it fails, try 3072, if it fails, fallback to 2048',
     ],
     securityGain: [
       'Raises security level from ~112 bits to 128+ bits (better aligned with AES-256)',

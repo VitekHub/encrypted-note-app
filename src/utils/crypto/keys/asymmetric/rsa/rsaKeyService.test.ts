@@ -34,10 +34,16 @@ describe('generateKeys', () => {
     expect(keyPair.privateKey.type).toBe('private')
   })
 
-  it('returns keys with correct algorithm', async () => {
+  it('returns keys with correct algorithm and size', async () => {
     const keyPair = await rsaKeyService.generateKeys()
-    expect(keyPair.publicKey.algorithm).toMatchObject({ name: 'RSA-OAEP' })
-    expect(keyPair.privateKey.algorithm).toMatchObject({ name: 'RSA-OAEP' })
+    expect(keyPair.publicKey.algorithm).toMatchObject({
+      name: 'RSA-OAEP',
+      modulusLength: 4096,
+    })
+    expect(keyPair.privateKey.algorithm).toMatchObject({
+      name: 'RSA-OAEP',
+      modulusLength: 4096,
+    })
   })
 
   it('produces different key pairs on two calls', async () => {

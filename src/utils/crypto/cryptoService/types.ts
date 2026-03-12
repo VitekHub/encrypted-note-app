@@ -5,7 +5,7 @@ import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
  * unlock, and teardown flows. Acts as a facade over RSA and Master Key services.
  *
  * **Security Model:**
- * - On setup: Generates RSA-2048 key pair, wraps & stores it, generates & wraps master key
+ * - On setup: Generates RSA-4096 key pair, wraps & stores it, generates & wraps master key
  * - On unlock: Loads RSA private key, loads wrapped master key, unwraps master key in memory
  * - Returns unwrapped master key to caller for data encryption/decryption
  * - Master key never persisted; only kept in memory during session
@@ -15,7 +15,7 @@ export interface CryptoService {
    * Called during sign-up: Generates and stores both RSA key pair and Master Key.
    *
    * This function:
-   * - Generates a new RSA-2048 key pair
+   * - Generates a new RSA-4096 key pair
    * - Encrypts the private key with the provided password and stores both keys
    * - Generates a fresh Master Key and wraps it with the RSA public key
    * - Stores the wrapped Master Key

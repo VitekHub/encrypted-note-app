@@ -11,7 +11,7 @@ async function generateRsaKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(
     {
       name: 'RSA-OAEP',
-      modulusLength: 2048,
+      modulusLength: 4096,
       publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
       hash: 'SHA-256',
     },

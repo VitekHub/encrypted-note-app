@@ -20,22 +20,51 @@ const RSA_PRIVATE_KEY_AAD = 'rsa_private_key_wrapper_v1'
 /** Current RSA key version */
 const RSA_KEY_VERSION = 'rsa_v1'
 
-/** RSA-OAEP algorithm configuration (2048-bit recommended for key wrapping) */
-const RSA_ALGORITHM = {
+/** RSA-OAEP algorithm base configuration */
+const RSA_ALGORITHM_BASE: RsaHashedKeyGenParams = {
   name: 'RSA-OAEP',
-  modulusLength: 2048,
+  modulusLength: 4096,
   publicExponent: new Uint8Array([0x01, 0x00, 0x01]), // 65537 (Fermat prime F₄) - prime, only two '1' bits → very fast modular exponentiation, resistant to low-exponent attacks
-  hash: 'SHA-256' as const,
+  hash: 'SHA-256',
 } as const
+
+/** Supported RSA key sizes in order of preference (NIST 2030+ recommendations) */
+const RSA_KEY_SIZES = [4096, 3072, 2048] as const
+
+/** Timeout for each key generation attempt in milliseconds */
+const KEY_GEN_TIMEOUT_MS = 5000
 
 export const rsaKeyService: RsaKeyService = {
   /** @inheritdoc */
   async generateKeys(): Promise<CryptoKeyPair> {
-    return await crypto.subtle.generateKey(
-      RSA_ALGORITHM,
-      true, // extractable only temporarily
-      ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
-    )
+    for (const modulusLength of RSA_KEY_SIZES) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), KEY_GEN_TIMEOUT_MS)
+
+      try {
+        const keyGenPromise = crypto.subtle.generateKey(
+          { ...RSA_ALGORITHM_BASE, modulusLength },
+          true, // extractable only temporarily for storage
+          ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
+        )
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          controller.signal.addEventListener(
+            'abort',
+            () => reject(new Error(`Timeout: RSA ${modulusLength}-bit generation took too long`)),
+            { once: true }
+          )
+        })
+
+        return (await Promise.race([keyGenPromise, timeoutPromise])) as CryptoKeyPair
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`RSA ${modulusLength}-bit key generation failed or timed out, trying next size...`, error)
+      } finally {
+        clearTimeout(timeoutId)
+      }
+    }
+    throw new Error('Critical failure: Could not generate RSA key pair with any supported key size (4096, 3072, 2048).')
   },
 
   /** @inheritdoc */
