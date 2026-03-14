@@ -6,17 +6,17 @@
     </h1>
 
     <nav v-if="!isMobile" class="nav-links">
-      <RouterLink v-if="hasMasterKey" to="/" class="nav-link">Note</RouterLink>
-      <RouterLink v-if="hasMasterKey" to="/settings" class="nav-link">Settings</RouterLink>
-      <RouterLink v-if="hasMasterKey" to="/about" class="nav-link">About</RouterLink>
-      <button v-if="hasMasterKey" class="nav-lock-btn" @click="handleLock">Lock</button>
+      <RouterLink v-if="isAuthenticated" to="/" class="nav-link">Note</RouterLink>
+      <RouterLink v-if="isAuthenticated" to="/settings" class="nav-link">Settings</RouterLink>
+      <RouterLink v-if="isAuthenticated" to="/about" class="nav-link">About</RouterLink>
+      <button v-if="isAuthenticated" class="nav-lock-btn" @click="handleLock">Lock</button>
       <ThemeToggle />
     </nav>
 
     <div v-else class="flex items-center gap-3">
       <ThemeToggle />
       <button
-        v-if="hasMobileMenuItems"
+        v-if="isAuthenticated"
         class="hamburger-btn"
         :aria-expanded="menuOpen"
         aria-label="Toggle menu"
@@ -30,31 +30,29 @@
 
     <Transition name="mobile-menu">
       <div v-if="isMobile && menuOpen" class="mobile-menu">
-        <RouterLink v-if="hasMasterKey" to="/" class="mobile-nav-link" @click="menuOpen = false">Note</RouterLink>
-        <RouterLink v-if="hasMasterKey" to="/settings" class="mobile-nav-link" @click="menuOpen = false">
+        <RouterLink v-if="isAuthenticated" to="/" class="mobile-nav-link" @click="menuOpen = false">Note</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/settings" class="mobile-nav-link" @click="menuOpen = false">
           Settings
         </RouterLink>
-        <RouterLink v-if="hasMasterKey" to="/about" class="mobile-nav-link" @click="menuOpen = false">About</RouterLink>
-        <button v-if="hasMasterKey" class="mobile-nav-link mobile-lock-btn" @click="handleLockMobile">Lock</button>
+        <RouterLink v-if="isAuthenticated" to="/about" class="mobile-nav-link" @click="menuOpen = false">
+          About
+        </RouterLink>
+        <button v-if="isAuthenticated" class="mobile-nav-link mobile-lock-btn" @click="handleLockMobile">Lock</button>
       </div>
     </Transition>
   </header>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useSessionKeys } from '../../composables/useSessionKeys'
-import { useSettings } from '../../composables/useSettings'
-import { useNoteState } from '../../composables/useNoteState'
-import { cryptoService } from '../../utils/crypto/cryptoService'
+import { useAuthStore } from '../../stores/authStore'
+import { storeToRefs } from 'pinia'
 import ThemeToggle from './ThemeToggle.vue'
 
 const router = useRouter()
-const { hasMasterKey, clearMasterKey } = useSessionKeys()
-const hasMobileMenuItems = computed(() => hasMasterKey.value)
-const { resetSettings } = useSettings()
-const { noteText } = useNoteState()
+const authStore = useAuthStore()
+const { isAuthenticated } = storeToRefs(authStore)
 
 const menuOpen = ref(false)
 const isMobile = ref(false)
@@ -74,10 +72,7 @@ onUnmounted(() => {
 })
 
 function handleLock() {
-  cryptoService.lock()
-  clearMasterKey()
-  resetSettings()
-  noteText.value = ''
+  authStore.lock()
   router.push('/unlock')
 }
 

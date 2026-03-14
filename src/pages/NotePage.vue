@@ -12,21 +12,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useEncryptedNote } from '../composables/useEncryptedNote'
-import { useSessionKeys } from '../composables/useSessionKeys'
-import { useSettings } from '../composables/useSettings'
+import { storeToRefs } from 'pinia'
+import { useNoteStore } from '../stores/noteStore'
 import { useAutoLock } from '../composables/useAutoLock'
-import { useNoteState } from '../composables/useNoteState'
-import { cryptoService } from '../utils/crypto/cryptoService'
+import { useAuthStore } from '../stores/authStore'
 import NoteTextArea from '../components/note/NoteTextArea.vue'
 
-const STORAGE_KEY = 'app-note'
-
 const router = useRouter()
-const { clearMasterKey } = useSessionKeys()
-const { resetSettings } = useSettings()
-const { noteText } = useNoteState()
-const { saveNote, error, loading } = useEncryptedNote(STORAGE_KEY)
+const authStore = useAuthStore()
+const noteStore = useNoteStore()
+const { noteText, loading, error } = storeToRefs(noteStore)
 
 const saveStatus = ref('')
 
@@ -34,7 +29,7 @@ useAutoLock(handleLock)
 
 async function handleSave() {
   saveStatus.value = ''
-  await saveNote(noteText.value)
+  await noteStore.saveNote(noteText.value)
   if (!error.value) {
     saveStatus.value = 'Saved.'
     setTimeout(() => (saveStatus.value = ''), 2000)
@@ -42,10 +37,7 @@ async function handleSave() {
 }
 
 function handleLock() {
-  cryptoService.lock()
-  clearMasterKey()
-  resetSettings()
-  noteText.value = ''
+  authStore.lock()
   error.value = null
   saveStatus.value = ''
   router.push('/unlock')

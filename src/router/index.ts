@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useSessionKeys } from '../composables/useSessionKeys'
+import { useAuthStore } from '../stores/authStore'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,13 +26,13 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  const { hasMasterKey } = useSessionKeys()
+  const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !hasMasterKey.value) {
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return '/unlock'
   }
 
-  if (to.path === '/unlock' && hasMasterKey.value) {
+  if (to.path === '/unlock' && authStore.isAuthenticated) {
     return '/'
   }
 })

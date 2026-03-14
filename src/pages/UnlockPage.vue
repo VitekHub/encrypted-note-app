@@ -25,68 +25,53 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useEncryptedNote } from '../composables/useEncryptedNote'
-import { useSessionKeys } from '../composables/useSessionKeys'
-import { useSettings } from '../composables/useSettings'
-import { useNoteState } from '../composables/useNoteState'
-import { cryptoService } from '../utils/crypto/cryptoService'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '../stores/authStore'
+import { useNoteStore } from '../stores/noteStore'
 import UnlockForm from '../components/auth/UnlockForm.vue'
 import AppInfo from '../components/info/AppInfo.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 
-const STORAGE_KEY = 'app-note'
-
 const router = useRouter()
-const { setMasterKey, clearMasterKey } = useSessionKeys()
-const { settings } = useSettings()
-const { noteText } = useNoteState()
-const { loadNote, clearNote, loading, error } = useEncryptedNote(STORAGE_KEY)
+const authStore = useAuthStore()
+const noteStore = useNoteStore()
+const { keysExist, isLoading: loading, error } = storeToRefs(authStore)
+const { noteText } = storeToRefs(noteStore)
 
 const passwordInput = ref('')
 const showDropConfirm = ref(false)
-const keysExist = ref(false)
 
 const signingUp = computed(() => !keysExist.value)
 
 onMounted(async () => {
-  keysExist.value = await cryptoService.isSetUp()
+  await authStore.checkKeysExist()
 })
 
 async function handleUnlock() {
   if (!passwordInput.value) return
-  loading.value = true
   try {
     if (signingUp.value) {
-      const { masterKey, params } = await cryptoService.setup(passwordInput.value)
-      setMasterKey(masterKey)
-      settings.value.argon2Params = params
-      keysExist.value = true
+      await authStore.setup(passwordInput.value)
       router.push('/')
     } else {
-      const { masterKey, params } = await cryptoService.unlock(passwordInput.value)
-      setMasterKey(masterKey)
-      settings.value.argon2Params = params
-      const result = await loadNote()
+      await authStore.unlock(passwordInput.value)
       if (!error.value) {
+        const result = await noteStore.loadNote()
         if (result !== null) {
           noteText.value = result
         }
         router.push('/')
       }
     }
-  } catch (e) {
-    error.value = e instanceof Error && e.message ? e.message : 'Failed to unlock'
-  } finally {
-    loading.value = false
+  } catch {
+    // error is set by the store
   }
 }
 
 async function handleDrop() {
-  clearMasterKey()
-  await cryptoService.teardown()
-  clearNote()
+  await authStore.teardown()
+  noteStore.clearNote()
   showDropConfirm.value = false
-  keysExist.value = false
   error.value = null
   passwordInput.value = ''
 }

@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import type { NotificationType } from '../../composables/useNotification'
+import type { NotificationType } from '../../stores/notificationStore'
 
 defineProps<{
   message: string

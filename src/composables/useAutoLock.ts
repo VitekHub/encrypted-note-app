@@ -1,8 +1,8 @@
 import { onMounted, onUnmounted, watch } from 'vue'
-import { useSettings } from './useSettings'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export function useAutoLock(onLock: () => void) {
-  const { settings } = useSettings()
+  const settingsStore = useSettingsStore()
   let timeoutId: number | null = null
 
   function locked() {
@@ -15,7 +15,7 @@ export function useAutoLock(onLock: () => void) {
       timeoutId = null
     }
 
-    const minutes = settings.value.idleTimeoutMinutes
+    const minutes = settingsStore.settings.idleTimeoutMinutes
     if (minutes <= 0) return // 0 means Never
 
     timeoutId = window.setTimeout(locked, minutes * 60 * 1000)
@@ -59,7 +59,7 @@ export function useAutoLock(onLock: () => void) {
 
   // Whenever the timeout setting changes, recalculate the timer
   watch(
-    () => settings.value.idleTimeoutMinutes,
+    () => settingsStore.settings.idleTimeoutMinutes,
     () => resetTimer()
   )
 

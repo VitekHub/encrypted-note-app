@@ -35,15 +35,17 @@
 </template>
 
 <script setup lang="ts">
-import { useTheme, type ThemeMode } from '../../composables/useTheme'
+import { storeToRefs } from 'pinia'
+import { useThemeStore, type ThemeMode } from '../../stores/themeStore'
 
-const { mode, setMode } = useTheme()
+const store = useThemeStore()
+const { mode } = storeToRefs(store)
 
 const order: ThemeMode[] = ['system', 'light', 'dark']
 
 function cycleMode() {
   const idx = order.indexOf(mode.value)
-  setMode(order[(idx + 1) % order.length])
+  store.setMode(order[(idx + 1) % order.length])
 }
 </script>
 

@@ -15,10 +15,13 @@
 </template>
 
 <script setup lang="ts">
-import { useNotification } from '../../composables/useNotification'
+import { storeToRefs } from 'pinia'
+import { useNotificationStore } from '../../stores/notificationStore'
 import NotificationItem from './NotificationItem.vue'
 
-const { notifications, clearNotification } = useNotification()
+const notificationStore = useNotificationStore()
+const { notifications } = storeToRefs(notificationStore)
+const { clearNotification } = notificationStore
 </script>
 
 <style scoped>

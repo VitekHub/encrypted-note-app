@@ -9,10 +9,11 @@
 </template>
 
 <script setup lang="ts">
-import { useSettings } from '../../composables/useSettings'
+import { storeToRefs } from 'pinia'
+import { useSettingsStore } from '../../stores/settingsStore'
 import BaseSelect from '../ui/BaseSelect.vue'
 
-const { settings } = useSettings()
+const { settings } = storeToRefs(useSettingsStore())
 
 const timeoutOptions = [
   { value: 1, label: '1 minute' },

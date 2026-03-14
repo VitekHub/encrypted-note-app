@@ -1,17 +1,27 @@
 import { ref } from 'vue'
+import { defineStore } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { cryptoService } from '../utils/crypto/cryptoService'
-import { useSessionKeys } from './useSessionKeys'
+import { useAuthStore } from './authStore'
 
-export function useEncryptedNote(storageKey: string) {
+const STORAGE_KEY = 'app-note'
+
+export const useNoteStore = defineStore('note', () => {
+  const noteText = ref('')
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const { masterKey } = useSessionKeys()
 
-  // Create additional authenticated data: userId:fieldName. This binds the encryption to the specific user and field
   const userId = 'TODO'
   const fieldName = 'note'
 
+  function getAuthStore() {
+    const authStore = useAuthStore()
+    const { masterKey } = storeToRefs(authStore)
+    return masterKey
+  }
+
   async function saveNote(plaintext: string): Promise<void> {
+    const masterKey = getAuthStore()
     if (!masterKey.value) {
       error.value = 'No active session key.'
       return
@@ -20,7 +30,7 @@ export function useEncryptedNote(storageKey: string) {
     error.value = null
     try {
       const encrypted = await cryptoService.encrypt(plaintext, masterKey.value, fieldName, userId)
-      localStorage.setItem(storageKey, encrypted)
+      localStorage.setItem(STORAGE_KEY, encrypted)
     } catch {
       error.value = 'Failed to save note.'
     } finally {
@@ -29,6 +39,7 @@ export function useEncryptedNote(storageKey: string) {
   }
 
   async function loadNote(): Promise<string | null> {
+    const masterKey = getAuthStore()
     if (!masterKey.value) {
       error.value = 'No active session key.'
       return null
@@ -36,7 +47,7 @@ export function useEncryptedNote(storageKey: string) {
     loading.value = true
     error.value = null
     try {
-      const stored = localStorage.getItem(storageKey)
+      const stored = localStorage.getItem(STORAGE_KEY)
       if (!stored) return null
       if (!cryptoService.isEncrypted(stored)) {
         error.value = 'Stored data is not in a valid encrypted format.'
@@ -52,14 +63,27 @@ export function useEncryptedNote(storageKey: string) {
   }
 
   function hasNote(): boolean {
-    const stored = localStorage.getItem(storageKey)
+    const stored = localStorage.getItem(STORAGE_KEY)
     return stored !== null && cryptoService.isEncrypted(stored)
   }
 
   function clearNote(): void {
-    localStorage.removeItem(storageKey)
+    localStorage.removeItem(STORAGE_KEY)
     error.value = null
   }
 
-  return { saveNote, loadNote, hasNote, clearNote, loading, error }
-}
+  function clearNoteText(): void {
+    noteText.value = ''
+  }
+
+  return {
+    noteText,
+    loading,
+    error,
+    saveNote,
+    loadNote,
+    hasNote,
+    clearNote,
+    clearNoteText,
+  }
+})

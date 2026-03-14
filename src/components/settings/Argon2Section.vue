@@ -81,9 +81,10 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { cryptoService, type CalibrationResult } from '../../utils/crypto/cryptoService'
-import { useNotification } from '../../composables/useNotification'
-import { useSettings, type BenchmarkMode } from '../../composables/useSettings'
+import { useNotificationStore } from '../../stores/notificationStore'
+import { useSettingsStore, type BenchmarkMode } from '../../stores/settingsStore'
 import BaseDialog from '../ui/BaseDialog.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import BaseInput from '../ui/BaseInput.vue'
@@ -91,8 +92,10 @@ import BaseSelect from '../ui/BaseSelect.vue'
 import BenchmarkResultsTable from './BenchmarkResultsTable.vue'
 import CalibrationResultPanel from './CalibrationResult.vue'
 
-const { showNotification } = useNotification()
-const { settings, benchmarkResults, runFullBenchmarks } = useSettings()
+const { showNotification } = useNotificationStore()
+const settingsStore = useSettingsStore()
+const { settings, benchmarkResults } = storeToRefs(settingsStore)
+const { runFullBenchmarks } = settingsStore
 
 const calibrating = ref(false)
 const benchmarking = ref(false)

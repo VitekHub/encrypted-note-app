@@ -36,12 +36,12 @@
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
 import { cryptoService } from '../../utils/crypto/cryptoService'
-import { useNotification } from '../../composables/useNotification'
+import { useNotificationStore } from '../../stores/notificationStore'
 import BaseDialog from '../ui/BaseDialog.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import BaseInput from '../ui/BaseInput.vue'
 
-const { showNotification } = useNotification()
+const { showNotification } = useNotificationStore()
 
 const open = ref(false)
 const loading = ref(false)

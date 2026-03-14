@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { defineStore } from 'pinia'
 
 export type NotificationType = 'success' | 'error' | 'info'
 
@@ -9,14 +10,14 @@ export interface Notification {
   timestamp: number
 }
 
-const notifications = ref<Notification[]>([])
-
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9)
 }
 
-export function useNotification() {
-  function showNotification(message: string, type: NotificationType = 'info', duration: number = 3500) {
+export const useNotificationStore = defineStore('notification', () => {
+  const notifications = ref<Notification[]>([])
+
+  function showNotification(message: string, type: NotificationType = 'info', duration: number = 3500): string {
     const id = generateId()
     const notification: Notification = {
       id,
@@ -36,7 +37,7 @@ export function useNotification() {
     return id
   }
 
-  function clearNotification(id: string) {
+  function clearNotification(id: string): void {
     notifications.value = notifications.value.filter((n) => n.id !== id)
   }
 
@@ -45,4 +46,4 @@ export function useNotification() {
     showNotification,
     clearNotification,
   }
-}
+})

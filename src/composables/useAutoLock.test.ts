@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useAutoLock } from './useAutoLock'
-import { useSettings } from './useSettings'
+
+const mockSettings = { idleTimeoutMinutes: 5 }
 
 let unmountedCb: Function | null = null
 vi.mock('vue', async (importOriginal) => {
@@ -14,10 +15,9 @@ vi.mock('vue', async (importOriginal) => {
   }
 })
 
-vi.mock('./useSettings', () => {
-  const settings = { value: { idleTimeoutMinutes: 5 } }
+vi.mock('../stores/settingsStore', () => {
   return {
-    useSettings: () => ({ settings }),
+    useSettingsStore: () => ({ settings: mockSettings }),
   }
 })
 
@@ -129,8 +129,7 @@ describe('useAutoLock', () => {
   })
 
   it('does not lock if idleTimeoutMinutes is 0', () => {
-    const { settings } = useSettings()
-    settings.value.idleTimeoutMinutes = 0
+    mockSettings.idleTimeoutMinutes = 0
 
     const onLock = vi.fn()
     useAutoLock(onLock)
@@ -139,6 +138,6 @@ describe('useAutoLock', () => {
     expect(onLock).not.toHaveBeenCalled()
 
     // Reset back to 5 for other tests
-    settings.value.idleTimeoutMinutes = 5
+    mockSettings.idleTimeoutMinutes = 5
   })
 })
