@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTheme, type ThemeMode } from '../composables/useTheme'
+import { useTheme, type ThemeMode } from '../../composables/useTheme'
 
 const { mode, setMode } = useTheme()
 
@@ -25,31 +25,24 @@ const options: { label: string; value: ThemeMode }[] = [
 ]
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
+@reference "tailwindcss";
 .theme-toggle {
-  display: inline-flex;
-  align-items: center;
+  @apply inline-flex items-center p-0.5 gap-0.5;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
 }
 
 .theme-btn {
+  @apply cursor-pointer border-none bg-transparent font-medium font-[inherit] leading-[1.5];
   padding: 4px 12px;
   font-size: 0.75rem;
-  font-weight: 500;
-  font-family: inherit;
-  border: none;
   border-radius: 6px;
-  background: transparent;
   color: var(--color-muted);
-  cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-  line-height: 1.5;
+    background-color 0.15s,
+    color 0.15s;
 
   &:hover:not(.active) {
     background-color: var(--color-bg);
@@ -57,9 +50,9 @@ const options: { label: string; value: ThemeMode }[] = [
   }
 
   &.active {
+    @apply font-semibold;
     background-color: var(--color-bg);
     color: var(--color-text);
-    font-weight: 600;
   }
 }
 </style>

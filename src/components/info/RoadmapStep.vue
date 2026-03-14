@@ -20,19 +20,13 @@
     <div v-if="isExpanded" class="step-content">
       <div class="content-section">
         <h4 class="section-label">Goal</h4>
-        <p class="section-text">
-          {{ step.goal }}
-        </p>
+        <p class="section-text">{{ step.goal }}</p>
       </div>
 
       <div v-for="section in sections(step)" :key="section.key" class="content-section">
-        <h4 class="section-label">
-          {{ section.label }}
-        </h4>
-        <ul class="points-list">
-          <li v-for="(item, idx) in section.items" :key="idx" class="point-item">
-            {{ item }}
-          </li>
+        <h4 class="section-label">{{ section.label }}</h4>
+        <ul class="list-none m-0 p-0 flex flex-col gap-2">
+          <li v-for="(item, idx) in section.items" :key="idx" class="point-item">{{ item }}</li>
         </ul>
       </div>
 
@@ -45,7 +39,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { RoadmapStep as RoadmapStepType } from '../data/roadmapSteps'
+import type { RoadmapStep as RoadmapStepType } from '../../data/roadmapSteps'
 
 interface Props {
   step: RoadmapStepType
@@ -66,76 +60,54 @@ const sections = (step: RoadmapStepType) => [
 ]
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
+@reference "tailwindcss";
 .roadmap-step {
+  @apply mb-3 overflow-hidden rounded-md;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
-  margin-bottom: 12px;
-  overflow: hidden;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.2s,
+    opacity 0.2s;
 
   &:hover {
-    border-color: var(--color-text);
     border-color: var(--color-text);
     opacity: 0.95;
   }
 }
 
 .step-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
+  @apply flex items-center gap-3 w-full bg-transparent border-none cursor-pointer text-left;
   padding: 14px 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
   font-size: 0.875rem;
   color: var(--color-text);
-  text-align: left;
-  transition: background-color 0.2s ease;
-
-  &:hover {
-    background-color: var(--color-bg-secondary);
-  }
+  transition: background-color 0.2s;
 }
 
 .step-number {
-  flex-shrink: 0;
-  font-weight: 600;
+  @apply shrink-0 font-semibold tracking-[0.05em] opacity-90;
   font-size: 0.8rem;
-  letter-spacing: 0.05em;
   color: var(--color-accent);
-  opacity: 0.9;
 }
 
 .step-title {
-  flex: 1;
-  font-weight: 500;
+  @apply flex-1 font-medium;
   color: var(--color-text);
 }
 
 .chevron {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
+  @apply shrink-0 flex items-center justify-center w-5 h-5 opacity-60;
   color: var(--color-text);
-  opacity: 0.6;
   transition:
-    transform 0.3s ease,
-    opacity 0.2s ease;
+    transform 0.3s,
+    opacity 0.2s;
 
   &.expanded {
-    transform: rotate(90deg);
-    opacity: 1;
+    @apply rotate-90 opacity-100;
   }
 }
 
 .step-content {
-  padding: 16px;
+  @apply p-4;
   border-top: 1px solid var(--color-border);
   animation: slideDown 0.2s ease;
 }
@@ -152,63 +124,36 @@ const sections = (step: RoadmapStepType) => [
 }
 
 .content-section {
-  margin-bottom: 16px;
+  @apply mb-4;
 
   &:last-child {
-    margin-bottom: 0;
+    @apply mb-0;
   }
 }
 
 .section-label {
-  margin: 0 0 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  @apply mb-2 text-xs font-semibold tracking-[0.08em] uppercase opacity-[0.85];
   color: var(--color-accent);
-  opacity: 0.85;
 }
 
 .section-text {
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  @apply m-0 text-sm leading-[1.6] opacity-80;
   color: var(--color-text);
-  opacity: 0.8;
-}
-
-.points-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .point-item {
-  font-size: 0.875rem;
-  line-height: 1.6;
+  @apply text-sm leading-[1.6] opacity-80 pl-4 relative;
   color: var(--color-text);
-  opacity: 0.8;
-  padding-left: 16px;
-  position: relative;
 
   &::before {
     content: '•';
-    position: absolute;
-    left: 4px;
+    @apply absolute left-1 opacity-60;
     color: var(--color-accent);
-    opacity: 0.6;
   }
 }
 
 .placeholder-text {
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  @apply m-0 text-sm leading-[1.6] opacity-50 italic;
   color: var(--color-text);
-  opacity: 0.5;
-  font-style: italic;
 }
 </style>

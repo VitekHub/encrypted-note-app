@@ -1,6 +1,6 @@
 <template>
-  <div class="strength-indicator">
-    <div class="strength-bar">
+  <div class="flex items-center gap-2.5">
+    <div class="flex gap-1 flex-1">
       <div
         v-for="i in 4"
         :key="i"
@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getPasswordStrength } from '../utils/passwordPolicy'
+import { getPasswordStrength } from '../../utils/passwordPolicy'
 
 const props = defineProps<{
   password: string
@@ -25,51 +25,36 @@ const props = defineProps<{
 const strength = computed(() => getPasswordStrength(props.password))
 </script>
 
-<style lang="scss" scoped>
-$levels: (
-  'weak': #ef4444,
-  'fair': #f97316,
-  'good': #84cc16,
-  'strong': #22c55e,
-);
+<style scoped>
+@reference "tailwindcss";
 
-.strength-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.level-weak {
+  --strength-color: var(--color-strength-weak);
 }
-
-.strength-bar {
-  display: flex;
-  gap: 4px;
-  flex: 1;
+.level-fair {
+  --strength-color: var(--color-strength-fair);
+}
+.level-good {
+  --strength-color: var(--color-strength-good);
+}
+.level-strong {
+  --strength-color: var(--color-strength-strong);
 }
 
 .strength-segment {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
+  @apply flex-1 h-1 rounded-sm;
   background-color: var(--color-border);
   transition: background-color 0.25s ease;
 
-  @each $level, $color in $levels {
-    &.filled.level-#{$level} {
-      background-color: $color;
-    }
+  &.filled {
+    background-color: var(--strength-color);
   }
 }
 
 .strength-label {
+  @apply font-semibold text-right min-w-[44px];
   font-size: 0.78rem;
-  font-weight: 600;
-  min-width: 44px;
-  text-align: right;
+  color: var(--strength-color);
   transition: color 0.25s ease;
-
-  @each $level, $color in $levels {
-    &.level-#{$level} {
-      color: $color;
-    }
-  }
 }
 </style>

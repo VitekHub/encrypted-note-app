@@ -15,27 +15,23 @@
 </template>
 
 <script setup lang="ts">
-import { useNotification } from '../composables/useNotification'
+import { useNotification } from '../../composables/useNotification'
 import NotificationItem from './NotificationItem.vue'
 
 const { notifications, clearNotification } = useNotification()
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
+@reference "tailwindcss";
 .notification-container {
-  position: fixed;
+  @apply fixed flex flex-col pointer-events-none max-w-full z-[1000];
   top: 24px;
   right: 24px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  pointer-events: none;
-  max-width: 100%;
   padding: 0 16px;
 
-  > * {
-    pointer-events: auto;
+  & > * {
+    @apply pointer-events-auto;
   }
 
   @media (max-width: 640px) {
@@ -43,10 +39,6 @@ const { notifications, clearNotification } = useNotification()
     right: 16px;
     left: 16px;
     padding: 0;
-
-    > * {
-      max-width: 100%;
-    }
   }
 }
 
@@ -55,11 +47,7 @@ const { notifications, clearNotification } = useNotification()
   transition: all 0.3s ease;
 }
 
-.notification-list-enter-from {
-  opacity: 0;
-  transform: translateX(100%);
-}
-
+.notification-list-enter-from,
 .notification-list-leave-to {
   opacity: 0;
   transform: translateX(100%);

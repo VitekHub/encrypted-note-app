@@ -1,20 +1,20 @@
 <template>
-  <div class="unlock-form">
-    <p class="unlock-desc">
+  <div class="flex flex-col gap-4">
+    <p class="muted-text">
       {{ signingUp ? 'Set a password to encrypt your note.' : 'Enter your password to decrypt your note.' }}
     </p>
+
     <div class="field">
-      <label for="password">Password</label>
-      <input
-        id="password"
-        :value="modelValue"
+      <BaseInput
+        :model-value="modelValue"
+        label="Password"
         type="password"
         placeholder="Enter password..."
-        @input="handlePasswordInput"
+        @update:model-value="handlePasswordInput"
         @keydown.enter="signingUp ? undefined : $emit('unlock')"
       />
       <p v-if="signingUp" class="hint-msg">
-        <span v-if="policyErrors.length" class="error-list">{{ policyErrors.join(', ') }}</span>
+        <span v-if="policyErrors.length" class="error-text">{{ policyErrors.join(', ') }}</span>
         <span v-else-if="!modelValue">Minimum 8 characters. Spaces and all character types accepted.</span>
         <span v-else-if="policyChecking">Checking...</span>
         <span v-else-if="passwordStrength.score < 3">
@@ -24,24 +24,24 @@
       </p>
       <PasswordStrength v-if="signingUp && modelValue" :password="modelValue" />
     </div>
+
     <div v-if="signingUp" class="field">
-      <label for="confirm-password">Confirm Password</label>
-      <input
-        id="confirm-password"
+      <BaseInput
         v-model="confirmPassword"
+        label="Confirm Password"
         type="password"
         placeholder="Confirm password..."
+        :error="confirmMismatch ? 'Passwords do not match.' : ''"
         @keydown.enter="handleCreate"
       />
-      <p v-if="confirmMismatch" class="error-msg">Passwords do not match.</p>
     </div>
-    <p v-if="error" class="error-msg">
-      {{ error }}
-    </p>
-    <div class="form-actions">
-      <button class="btn-primary" :disabled="isSubmitDisabled" @click="signingUp ? handleCreate() : $emit('unlock')">
+
+    <p v-if="error" class="error-text">{{ error }}</p>
+
+    <div class="flex items-center justify-between gap-2.5">
+      <BaseButton :disabled="isSubmitDisabled" @click="signingUp ? handleCreate() : $emit('unlock')">
         {{ submitLabel }}
-      </button>
+      </BaseButton>
       <button v-if="!signingUp" class="btn-drop" @click="$emit('drop')">Drop Database</button>
     </div>
   </div>
@@ -49,9 +49,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { validatePassword } from '../utils/passwordPolicy'
-import { getPasswordStrength } from '../utils/passwordPolicy'
+import { validatePassword, getPasswordStrength } from '../../utils/passwordPolicy'
 import PasswordStrength from './PasswordStrength.vue'
+import BaseInput from '../ui/BaseInput.vue'
+import BaseButton from '../ui/BaseButton.vue'
 
 const props = defineProps<{
   modelValue: string
@@ -75,8 +76,7 @@ const passwordStrength = computed(() => getPasswordStrength(props.modelValue))
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-function handlePasswordInput(event: Event) {
-  const value = (event.target as HTMLInputElement).value
+function handlePasswordInput(value: string) {
   emit('update:modelValue', value)
   policyDirty.value = true
   policyErrors.value = []
@@ -141,114 +141,28 @@ const submitLabel = computed(() => {
 })
 </script>
 
-<style lang="scss" scoped>
-$color-danger: #dc2626;
-
-.unlock-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.unlock-desc {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-muted);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-input[type='password'] {
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 1rem;
-  font-family: inherit;
-  color: var(--color-text);
-  background-color: var(--color-surface);
-  border: 1.5px solid var(--color-border);
-  border-radius: 8px;
-  outline: none;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-
-  &:focus {
-    border-color: var(--color-accent);
-  }
-}
-
+<style scoped>
+@reference "tailwindcss";
 .hint-msg {
-  margin: 0;
+  @apply m-0;
   font-size: 0.8rem;
   color: var(--color-muted);
 }
 
-.error-msg {
-  margin: 0;
-  font-size: 0.85rem;
-  color: $color-danger;
-}
-
-.error-list {
-  color: $color-danger;
-}
-
-.form-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.btn-primary {
-  padding: 9px 22px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  font-family: inherit;
-  color: #fff;
-  background-color: var(--color-accent);
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: opacity 0.15s;
-
-  &:hover:not(:disabled) {
-    opacity: 0.88;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
 .btn-drop {
+  @apply bg-transparent cursor-pointer font-medium font-[inherit] ml-auto;
   padding: 9px 18px;
   font-size: 0.9rem;
-  font-weight: 500;
-  font-family: inherit;
-  color: $color-danger;
-  background-color: transparent;
-  border: 1.5px solid $color-danger;
+  color: var(--color-danger);
+  border: 1.5px solid var(--color-danger);
   border-radius: 8px;
-  cursor: pointer;
   transition:
     background-color 0.15s,
     color 0.15s;
-  margin-left: auto;
 
   &:hover {
-    background-color: $color-danger;
-    color: #fff;
+    background-color: var(--color-danger);
+    color: var(--color-white);
   }
 }
 </style>

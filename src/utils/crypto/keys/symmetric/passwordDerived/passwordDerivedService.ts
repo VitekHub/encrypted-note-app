@@ -55,7 +55,7 @@ export class PasswordDerivedServiceImpl implements PasswordDerivedService {
     return crypto.subtle.importKey(
       'raw',
       hashBytes.buffer as ArrayBuffer,
-      { name: 'AES-GCM' },
+      { name: 'AES-GCM', length: 256 },
       false, // Not extractable
       ['encrypt', 'decrypt'] // Allowed usages
     )

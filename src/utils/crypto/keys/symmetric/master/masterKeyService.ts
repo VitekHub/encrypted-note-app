@@ -12,6 +12,7 @@ const MASTER_KEY_ALGORITHM = {
 
 const RSA_WRAP_ALGORITHM = {
   name: 'RSA-OAEP',
+  hash: 'SHA-256',
 } as const
 
 const ENCRYPTION_IV_LEN = 12

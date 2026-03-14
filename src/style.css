@@ -1,3 +1,45 @@
+@import 'tailwindcss';
+@import './styles/components.css';
+
+@theme {
+  --color-theme-bg: var(--color-bg);
+  --color-theme-surface: var(--color-surface);
+  --color-theme-border: var(--color-border);
+  --color-theme-text: var(--color-text);
+  --color-theme-heading: var(--color-heading);
+  --color-theme-muted: var(--color-muted);
+  --color-theme-accent: var(--color-accent);
+  --color-theme-danger: var(--color-danger);
+  --color-theme-success: var(--color-success);
+
+  --color-strength-weak: #ef4444;
+  --color-strength-fair: #f97316;
+  --color-strength-good: #84cc16;
+  --color-strength-strong: #22c55e;
+
+  --color-info-about: #2e86c1;
+  --color-info-coming-soon: #1e8449;
+  --color-info-roadmap: #d68910;
+
+  --color-danger-dark: #7f1d1d;
+  --color-danger-light: #fca5a5;
+  --color-danger-mid: #b91c1c;
+  --color-danger-hover: #ee6d6d;
+
+  --color-white: #ffffff;
+
+  --color-success-subtle: rgba(16, 185, 129, 0.05);
+  --color-danger-subtle: rgba(220, 38, 38, 0.05);
+  --color-accent-subtle: rgba(59, 130, 246, 0.05);
+  --color-accent-subtle-light: rgba(37, 99, 235, 0.05);
+  --color-shadow-md: rgba(0, 0, 0, 0.15);
+
+  --color-danger-gradient-light-start: rgba(254, 226, 226, 0.3);
+  --color-danger-gradient-light-end: rgba(255, 245, 245, 0.3);
+  --color-danger-gradient-dark-start: rgba(127, 29, 29, 0.2);
+  --color-danger-gradient-dark-end: rgba(159, 18, 18, 0.1);
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -14,6 +56,8 @@
   --color-heading: #0c0a09;
   --color-muted: #78716c;
   --color-accent: #2563eb;
+  --color-danger: #dc2626;
+  --color-success: #10b981;
 }
 
 [data-theme='dark'] {

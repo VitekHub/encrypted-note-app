@@ -1,12 +1,6 @@
 <template>
-  <div class="note-container">
-    <header class="toolbar">
-      <h1>
-        <img src="/favicon.svg" alt="lock icon" class="title-icon" />
-        CipherNote
-      </h1>
-      <ThemeToggle />
-    </header>
+  <div class="flex flex-col w-full max-w-[640px]">
+    <AppHeader />
 
     <template v-if="!unlocked">
       <UnlockForm
@@ -21,7 +15,7 @@
     </template>
 
     <div v-else>
-      <NoteArea
+      <NoteTextArea
         v-model="noteText"
         :loading="loading"
         :error="error"
@@ -29,7 +23,6 @@
         @save="handleSave"
         @lock="handleLock"
       />
-
       <Settings />
     </div>
 
@@ -52,14 +45,14 @@ import { useEncryptedNote } from '../composables/useEncryptedNote'
 import { useSessionKeys } from '../composables/useSessionKeys'
 import { useAutoLock } from '../composables/useAutoLock'
 import { cryptoService } from '../utils/crypto/cryptoService'
-import UnlockForm from './UnlockForm.vue'
-import NoteArea from './NoteArea.vue'
-import ConfirmDialog from './ConfirmDialog.vue'
-import AppInfo from './AppInfo.vue'
-import ThemeToggle from './ThemeToggle.vue'
-import Settings from './Settings.vue'
-import NotificationContainer from './NotificationContainer.vue'
 import { useSettings } from '../composables/useSettings'
+import AppHeader from './layout/AppHeader.vue'
+import UnlockForm from './auth/UnlockForm.vue'
+import NoteTextArea from './note/NoteTextArea.vue'
+import ConfirmDialog from './ui/ConfirmDialog.vue'
+import AppInfo from './info/AppInfo.vue'
+import Settings from './settings/Settings.vue'
+import NotificationContainer from './notification/NotificationContainer.vue'
 
 const STORAGE_KEY = 'app-note'
 
@@ -89,7 +82,6 @@ async function handleUnlock() {
     if (signingUp.value) {
       const { masterKey, params } = await cryptoService.setup(passwordInput.value)
       setMasterKey(masterKey)
-      // Save the calibrated params to settings so future encryptions (e.g. settings password change) use them
       settings.value.argon2Params = params
       keysExist.value = true
       unlocked.value = true
@@ -140,35 +132,3 @@ async function handleDrop() {
   keysExist.value = false
 }
 </script>
-
-<style lang="scss" scoped>
-.note-container {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-width: 640px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 24px 0;
-
-  h1 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--color-heading);
-  }
-}
-
-.title-icon {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-}
-</style>
