@@ -182,15 +182,8 @@ export const roadmapSteps: RoadmapStep[] = [
   {
     title: 'Add Basic Key & Format Versioning',
     goal: 'Prepare for future crypto changes without forcing full re-encryption.',
-    flow: [
-      'Embed version tag in AAD (e.g. "ciphernote-v2")',
-      'Add version prefix or metadata field when storing wrapped master key and encrypted notes',
-      'Handle version detection during decrypt / rotation flows',
-    ],
-    securityGain: [
-      'Enables safe future upgrades (stronger Argon2id, new algorithms, etc.)',
-      'Avoids silent failures when old vs new formats mix',
-    ],
+    flow: ['Embed version tag in AAD (e.g. "v1")', 'Add version prefix or metadata field when storing encrypted notes'],
+    securityGain: ['Enables safe future upgrades (stronger Argon2id, new algorithms, etc.)'],
     dangers: [
       'With the broken AAD binding, the entire cryptographic protocol remains fundamentally flawed.',
       'Encrypted notes can still be silently swapped between users even after all rotations and upgrades.',

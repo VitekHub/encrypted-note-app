@@ -7,8 +7,10 @@ import { argon2CalibrationService } from '../argon2Calibration'
 import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
 import type { CryptoService } from './types'
 
+const CURRENT_VERSION = 'v1' as const
+
 function getAdditionalAuthenticatedData(userId: string, fieldId: string): string {
-  return `${userId}:${fieldId}`
+  return `${CURRENT_VERSION}:${userId}:${fieldId}`
 }
 
 /**

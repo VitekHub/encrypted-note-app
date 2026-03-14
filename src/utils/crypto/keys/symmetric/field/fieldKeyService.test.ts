@@ -4,7 +4,7 @@ import { masterKeyService } from '../master'
 import { rsaKeyService } from '../../asymmetric/rsa'
 import { store } from '../../../testUtils'
 
-const AAD = 'user123:note'
+const AAD = 'v1:user123:note'
 const PLAINTEXT = 'Field secret data'
 const FIELD = 'note'
 
@@ -145,5 +145,23 @@ describe('fieldKeyService.clear', () => {
 
     expect(dec1).toBe(PLAINTEXT)
     expect(dec2).toBe(PLAINTEXT)
+  })
+})
+
+describe('versioning', () => {
+  it('aad includes v1 version tag', () => {
+    expect(AAD).toMatch(/^v1:/)
+  })
+
+  it('encrypts with versioned aad and decrypts with same versioned aad', async () => {
+    const blob = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
+    const result = await fieldKeyService.decrypt(blob, masterKey, FIELD, AAD)
+    expect(result).toBe(PLAINTEXT)
+  })
+
+  it('rejects blob encrypted with different aad', async () => {
+    const otherAad = 'v1:other-user:note'
+    const blob = await fieldKeyService.encrypt(PLAINTEXT, masterKey, FIELD, AAD)
+    await expect(fieldKeyService.decrypt(blob, masterKey, FIELD, otherAad)).rejects.toThrow()
   })
 })
