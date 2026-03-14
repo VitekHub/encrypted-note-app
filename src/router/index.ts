@@ -10,6 +10,10 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/login',
+      component: () => import('../pages/LoginPage.vue'),
+    },
+    {
       path: '/unlock',
       component: () => import('../pages/UnlockPage.vue'),
     },
@@ -25,15 +29,29 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return '/unlock'
+  if (!authStore.isInitialized) {
+    await authStore.initSession()
   }
 
-  if (to.path === '/unlock' && authStore.isAuthenticated) {
-    return '/'
+  if (authStore.isAuthenticated) {
+    if (to.path === '/login' || to.path === '/unlock') {
+      return '/'
+    }
+    return
+  }
+
+  if (to.meta.requiresAuth) {
+    if (authStore.hasSupabaseSession) {
+      return '/unlock'
+    }
+    return '/login'
+  }
+
+  if (to.path === '/unlock' && !authStore.hasSupabaseSession) {
+    return '/login'
   }
 })
 

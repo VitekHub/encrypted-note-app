@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { argon2CalibrationService, type Argon2Params, type CalibrationResult } from '../utils/crypto/argon2Calibration'
+import { getUserData, setUserData } from '../utils/userDataService'
 
 export interface AppSettings {
   idleTimeoutMinutes: number
@@ -27,36 +28,58 @@ const FULL_BENCHMARK_SETS: Argon2Params[] = [
   { memorySize: 256 * 1024, iterations: 3, parallelism: 8, hashLength: 32 },
 ]
 
-const SETTINGS_KEY = 'app-settings'
+const DATA_KEY = 'settings'
 
 const defaultSettings: AppSettings = {
   idleTimeoutMinutes: 5,
 }
 
 export const useSettingsStore = defineStore('settings', () => {
-  function loadInitialSettings(): AppSettings {
-    try {
-      const stored = localStorage.getItem(SETTINGS_KEY)
-      if (stored) {
-        return { ...defaultSettings, ...JSON.parse(stored) }
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to parse app settings from localStorage', e)
-    }
-    return { ...defaultSettings }
-  }
-
-  const settings = ref<AppSettings>(loadInitialSettings())
+  const settings = ref<AppSettings>({ ...defaultSettings })
   const benchmarkResults = ref<CalibrationResult[]>([])
+  const _sessionActive = ref(false)
 
   watch(
     settings,
-    (newVal) => {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(newVal))
+    async (newVal) => {
+      if (!_sessionActive.value) return
+      try {
+        await setUserData(DATA_KEY, JSON.stringify(newVal))
+      } catch (e) {
+        console.error('Failed to auto-save settings', e) // eslint-disable-line no-console
+      }
     },
     { deep: true }
   )
+
+  async function loadSettings(): Promise<Argon2Params | null> {
+    try {
+      const stored = await getUserData(DATA_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored) as AppSettings
+        settings.value = { ...defaultSettings, ...parsed }
+        _sessionActive.value = true
+        return parsed.argon2Params ?? null
+      }
+    } catch (e) {
+      console.error('Failed to load settings from database', e) // eslint-disable-line no-console
+    }
+    _sessionActive.value = true
+    return null
+  }
+
+  async function persistSettings(): Promise<void> {
+    try {
+      await setUserData(DATA_KEY, JSON.stringify(settings.value))
+    } catch (e) {
+      console.error('Failed to save settings to database', e) // eslint-disable-line no-console
+    }
+  }
+
+  async function updateSettings(patch: Partial<AppSettings>): Promise<void> {
+    settings.value = { ...settings.value, ...patch }
+    await persistSettings()
+  }
 
   async function runFullBenchmarks(mode: BenchmarkMode): Promise<void> {
     let sets: Argon2Params[] = []
@@ -91,12 +114,16 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function resetSettings(): void {
+    _sessionActive.value = false
     settings.value = { ...defaultSettings }
   }
 
   return {
     settings,
     benchmarkResults,
+    loadSettings,
+    persistSettings,
+    updateSettings,
     runFullBenchmarks,
     resetSettings,
   }

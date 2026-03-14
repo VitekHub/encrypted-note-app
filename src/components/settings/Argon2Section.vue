@@ -95,7 +95,7 @@ import CalibrationResultPanel from './CalibrationResult.vue'
 const { showNotification } = useNotificationStore()
 const settingsStore = useSettingsStore()
 const { settings, benchmarkResults } = storeToRefs(settingsStore)
-const { runFullBenchmarks } = settingsStore
+const { runFullBenchmarks, persistSettings } = settingsStore
 
 const calibrating = ref(false)
 const benchmarking = ref(false)
@@ -153,6 +153,7 @@ async function handleApplyCalibration() {
   try {
     await cryptoService.updateParams(calibrationPassword.value, suggestedCryptoParams.value.params)
     settings.value.argon2Params = suggestedCryptoParams.value.params
+    await persistSettings()
     showNotification('Security parameters strengthened successfully!', 'success')
     suggestedCryptoParams.value = null
     closeApplyDialog()

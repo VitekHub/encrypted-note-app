@@ -9,7 +9,9 @@
       <RouterLink v-if="isAuthenticated" to="/" class="nav-link">Note</RouterLink>
       <RouterLink v-if="isAuthenticated" to="/settings" class="nav-link">Settings</RouterLink>
       <RouterLink v-if="isAuthenticated" to="/about" class="nav-link">About</RouterLink>
+      <span v-if="isAuthenticated && username" class="nav-username">{{ username }}</span>
       <button v-if="isAuthenticated" class="nav-lock-btn" @click="handleLock">Lock</button>
+      <button v-if="isAuthenticated" class="nav-signout-btn" @click="handleSignOut">Sign Out</button>
       <ThemeToggle />
     </nav>
 
@@ -30,6 +32,7 @@
 
     <Transition name="mobile-menu">
       <div v-if="isMobile && menuOpen" class="mobile-menu">
+        <span v-if="isAuthenticated && username" class="mobile-username">{{ username }}</span>
         <RouterLink v-if="isAuthenticated" to="/" class="mobile-nav-link" @click="menuOpen = false">Note</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/settings" class="mobile-nav-link" @click="menuOpen = false">
           Settings
@@ -38,6 +41,9 @@
           About
         </RouterLink>
         <button v-if="isAuthenticated" class="mobile-nav-link mobile-lock-btn" @click="handleLockMobile">Lock</button>
+        <button v-if="isAuthenticated" class="mobile-nav-link mobile-signout-btn" @click="handleSignOutMobile">
+          Sign Out
+        </button>
       </div>
     </Transition>
   </header>
@@ -52,7 +58,7 @@ import ThemeToggle from './ThemeToggle.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { isAuthenticated } = storeToRefs(authStore)
+const { isAuthenticated, username } = storeToRefs(authStore)
 
 const menuOpen = ref(false)
 const isMobile = ref(false)
@@ -71,14 +77,24 @@ onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
 })
 
-function handleLock() {
-  authStore.lock()
+async function handleLock() {
+  await authStore.lock()
   router.push('/unlock')
 }
 
-function handleLockMobile() {
+async function handleLockMobile() {
   menuOpen.value = false
-  handleLock()
+  await handleLock()
+}
+
+async function handleSignOut() {
+  await authStore.logout()
+  router.push('/login')
+}
+
+async function handleSignOutMobile() {
+  menuOpen.value = false
+  await handleSignOut()
 }
 </script>
 
@@ -113,6 +129,12 @@ function handleLockMobile() {
   background-color: var(--color-surface);
 }
 
+.nav-username {
+  @apply text-sm font-medium px-3 py-1.5;
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+
 .nav-lock-btn {
   @apply text-sm font-medium px-3 py-1.5 rounded-lg cursor-pointer border-none font-[inherit] bg-transparent transition-colors duration-150;
   color: var(--color-muted);
@@ -120,6 +142,16 @@ function handleLockMobile() {
 
 .nav-lock-btn:hover {
   color: var(--color-danger);
+  background-color: var(--color-surface);
+}
+
+.nav-signout-btn {
+  @apply text-sm font-medium px-3 py-1.5 rounded-lg cursor-pointer border-none font-[inherit] bg-transparent transition-colors duration-150;
+  color: var(--color-muted);
+}
+
+.nav-signout-btn:hover {
+  color: var(--color-text);
   background-color: var(--color-surface);
 }
 
@@ -158,6 +190,13 @@ function handleLockMobile() {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
+.mobile-username {
+  @apply text-xs font-medium px-4 py-2;
+  color: var(--color-muted);
+  opacity: 0.7;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .mobile-nav-link {
   @apply text-sm font-medium px-4 py-3 no-underline text-left w-full cursor-pointer border-none font-[inherit] bg-transparent transition-colors duration-150;
   color: var(--color-text);
@@ -174,6 +213,10 @@ function handleLockMobile() {
 
 .mobile-lock-btn {
   color: var(--color-danger);
+}
+
+.mobile-signout-btn {
+  color: var(--color-muted);
 }
 
 .mobile-menu-enter-active,
