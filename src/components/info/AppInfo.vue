@@ -50,8 +50,7 @@ const features = [
 <style scoped>
 @reference "tailwindcss";
 .app-info {
-  @apply mt-8 pt-7 flex flex-col gap-6;
-  border-top: 1.5px solid var(--color-border);
+  @apply flex flex-col gap-6;
 }
 
 .section-title {

@@ -18,12 +18,7 @@ import Argon2Section from './Argon2Section.vue'
 <style scoped>
 @reference "tailwindcss";
 .settings {
-  @apply pt-8 mt-8;
-  border-top: 1px solid var(--color-border);
-
-  @media (max-width: 640px) {
-    @apply pt-6 mt-6;
-  }
+  @apply pt-2;
 }
 
 .settings-title {
