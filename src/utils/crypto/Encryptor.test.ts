@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
+import { fromUint8Array } from 'js-base64'
 import { Encryptor } from './Encryptor'
 
 let aesKey: CryptoKey
@@ -155,7 +156,7 @@ describe('Encryptor', () => {
 
     it('returns false for a blob that is too short', () => {
       const enc = new Encryptor({ saltLen: 16, ivLen: 12 })
-      const tooShort = btoa('tiny')
+      const tooShort = fromUint8Array(new TextEncoder().encode('tiny'))
       expect(enc.isEncrypted(tooShort)).toBe(false)
     })
 
