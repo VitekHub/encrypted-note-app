@@ -3,8 +3,8 @@ import { masterKeyService, WRAPPED_MASTER_KEY_NAME } from './masterKeyService'
 import { store } from '../../../testUtils'
 
 vi.mock('../../../../supabase/userKeyService', async () => {
-  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
-  return mockSupabaseColumnKeyStorage
+  const { mockUserKeyService } = await import('../../../testUtils')
+  return mockUserKeyService
 })
 
 async function generateRsaKeyPair(): Promise<CryptoKeyPair> {

@@ -4,6 +4,7 @@ import { cryptoService } from '../utils/crypto/cryptoService'
 import { useSettingsStore } from './settingsStore'
 import { useNoteStore } from './noteStore'
 import { signUp, signIn, signOut, deleteAccount, getCurrentSession } from '../utils/auth/usernameAuthService'
+import { loginLockoutService, LockoutError } from '../utils/loginLockoutService'
 
 export const useAuthStore = defineStore('auth', () => {
   const masterKey = ref<CryptoKey | null>(null)
@@ -64,6 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
     error.value = null
     try {
+      await loginLockoutService.checkLockout()
+
       const uid = await signIn(usernameInput, password)
       userId.value = uid
       username.value = usernameInput.toLowerCase()
@@ -71,12 +74,21 @@ export const useAuthStore = defineStore('auth', () => {
       const { masterKey: key, params } = await cryptoService.unlock(password)
       masterKey.value = key
 
+      await loginLockoutService.reset()
+
       const settingsStore = useSettingsStore()
       const storedParams = await settingsStore.loadSettings()
       if (!storedParams) {
         await settingsStore.updateSettings({ argon2Params: params })
       }
     } catch (e) {
+      if (e instanceof LockoutError) {
+        error.value = e.message
+        throw e
+      }
+      if ((e as { code?: string })?.code?.includes('invalid_credentials')) {
+        await loginLockoutService.recordFailedAttempt()
+      }
       userId.value = null
       username.value = null
       masterKey.value = null

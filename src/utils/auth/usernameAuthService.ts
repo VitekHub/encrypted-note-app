@@ -116,8 +116,8 @@ export async function signIn(username: string, password: string): Promise<string
   })
 
   if (error) {
-    if (error.message.includes('Invalid login credentials')) {
-      throw new Error('Incorrect username or password.')
+    if ((error as { code?: string })?.code?.includes('invalid_credentials')) {
+      throw error
     }
     throw new Error(`Sign in failed: ${error.message}`)
   }

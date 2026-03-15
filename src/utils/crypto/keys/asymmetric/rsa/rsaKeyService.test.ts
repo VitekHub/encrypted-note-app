@@ -4,8 +4,8 @@ const { masterKeyService } = await import('../../../keys/symmetric/master')
 import { store } from '../../../testUtils'
 
 vi.mock('../../../../supabase/userKeyService', async () => {
-  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
-  return mockSupabaseColumnKeyStorage
+  const { mockUserKeyService } = await import('../../../testUtils')
+  return mockUserKeyService
 })
 
 const PASSWORD = 'test-password-rsa'

@@ -7,13 +7,6 @@ export interface UserKeysRow {
   wrapped_master_key: string | null
 }
 
-export interface LoginLockoutRow {
-  attempts: string | null
-  attempts_sig: string | null
-  lock_until: string | null
-  lock_until_sig: string | null
-}
-
 /**
  * Resolves the authenticated user's Supabase ID from the active session.
  *
@@ -175,53 +168,4 @@ export async function deleteUserKeysRow(): Promise<void> {
   const userId = await getUserId()
   const { error } = await supabase.from('user_keys').delete().eq('user_id', userId)
   if (error) throw new Error(`Failed to delete user_keys row: ${error.message}`)
-}
-
-/**
- * Retrieves the login lockout record for the authenticated user.
- *
- * @returns The stored `LoginLockoutRow`, or `null` if no record exists
- * @throws If the database query fails
- */
-export async function getLoginLockout(): Promise<LoginLockoutRow | null> {
-  const userId = await getUserId()
-  const { data, error } = await supabase
-    .from('login_lockout')
-    .select('attempts, attempts_sig, lock_until, lock_until_sig')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (error) throw new Error(`Failed to get login_lockout: ${error.message}`)
-  return data ?? null
-}
-
-/**
- * Creates or updates the login lockout record for the authenticated user.
- *
- * Uses an upsert on `user_id` so that subsequent calls replace the existing
- * record rather than inserting a duplicate row.
- *
- * @param fields - Partial set of `LoginLockoutRow` fields to write
- * @returns Promise that resolves when the write completes
- * @throws If the database upsert fails
- */
-export async function setLoginLockout(fields: Partial<LoginLockoutRow>): Promise<void> {
-  const userId = await getUserId()
-  const { error } = await supabase
-    .from('login_lockout')
-    .upsert({ user_id: userId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-  if (error) throw new Error(`Failed to upsert login_lockout: ${error.message}`)
-}
-
-/**
- * Deletes the login lockout record for the authenticated user.
- *
- * Called after a successful login to reset the failed-attempt counter.
- *
- * @returns Promise that resolves when the deletion completes
- * @throws If the database delete fails
- */
-export async function clearLoginLockout(): Promise<void> {
-  const userId = await getUserId()
-  const { error } = await supabase.from('login_lockout').delete().eq('user_id', userId)
-  if (error) throw new Error(`Failed to clear login_lockout: ${error.message}`)
 }

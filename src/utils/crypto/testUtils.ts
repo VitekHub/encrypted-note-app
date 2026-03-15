@@ -1,6 +1,6 @@
 export const store = new Map<string, string>()
 
-export const mockSupabaseColumnKeyStorage = {
+export const mockUserKeyService = {
   getRsaPublicKey: () => Promise.resolve(store.get('rsa_public_key_spki') ?? null),
   setRsaPublicKey: (value: string) => {
     store.set('rsa_public_key_spki', value)
@@ -28,7 +28,4 @@ export const mockSupabaseColumnKeyStorage = {
     store.delete('wrapped_master_key')
     return Promise.resolve()
   },
-  getLoginLockout: () => Promise.resolve(null),
-  setLoginLockout: (_fields: object) => Promise.resolve(),
-  clearLoginLockout: () => Promise.resolve(),
 }

@@ -9,8 +9,8 @@ const PLAINTEXT = 'Field secret data'
 const FIELD = 'note'
 
 vi.mock('../../../../supabase/userKeyService', async () => {
-  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
-  return mockSupabaseColumnKeyStorage
+  const { mockUserKeyService } = await import('../../../testUtils')
+  return mockUserKeyService
 })
 
 async function loadMasterKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey> {
