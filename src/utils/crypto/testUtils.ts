@@ -1,6 +1,8 @@
+import type * as UserKeyService from '../supabase/userKeyService'
+
 export const store = new Map<string, string>()
 
-export const mockUserKeyService = {
+export const mockUserKeyService: typeof UserKeyService = {
   getRsaPublicKey: () => Promise.resolve(store.get('rsa_public_key_spki') ?? null),
   setRsaPublicKey: (value: string) => {
     store.set('rsa_public_key_spki', value)
@@ -22,10 +24,7 @@ export const mockUserKeyService = {
     return Promise.resolve()
   },
   deleteUserKeysRow: () => {
-    store.delete('rsa_public_key_spki')
-    store.delete('rsa_private_key_encrypted')
-    store.delete('rsa_key_version')
-    store.delete('wrapped_master_key')
+    store.clear()
     return Promise.resolve()
   },
 }

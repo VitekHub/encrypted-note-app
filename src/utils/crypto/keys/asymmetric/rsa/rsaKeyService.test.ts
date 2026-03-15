@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { rsaKeyService } from './rsaKeyService'
 const { masterKeyService } = await import('../../../keys/symmetric/master')
-import { store } from '../../../testUtils'
+import { mockUserKeyService, store } from '../../../testUtils'
 
 vi.mock('../../../../supabase/userKeyService', async () => {
   const { mockUserKeyService } = await import('../../../testUtils')
@@ -76,15 +76,18 @@ describe('hasKeys', () => {
 
   it('returns false when only the public key is present', async () => {
     const keyPair = await rsaKeyService.generateKeys()
-    await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    store.delete('rsa_private_key_encrypted')
+    const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey)
+    const { fromUint8Array } = await import('js-base64')
+    await mockUserKeyService.setRsaPublicKey(fromUint8Array(new Uint8Array(spki)))
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
 
   it('returns false when only the private key is present', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    store.delete('rsa_public_key_spki')
+    const encryptedPrivate = await mockUserKeyService.getRsaPrivateKeyEncrypted()
+    await mockUserKeyService.deleteUserKeysRow()
+    await mockUserKeyService.setRsaPrivateKeyEncrypted(encryptedPrivate!)
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
 })
@@ -129,9 +132,9 @@ describe('reEncryptPrivateKey', () => {
   it('changes the stored encrypted private key blob', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    const before = store.get('rsa_private_key_encrypted')
+    const before = await mockUserKeyService.getRsaPrivateKeyEncrypted()
     await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
-    const after = store.get('rsa_private_key_encrypted')
+    const after = await mockUserKeyService.getRsaPrivateKeyEncrypted()
     expect(after).not.toBe(before)
   })
 
@@ -186,16 +189,16 @@ describe('rotateRsaKeys', () => {
   it('creates a new key pair and leaves master key intact', async () => {
     await prepareKeysWithMaster()
 
-    const originalPublic = store.get('rsa_public_key_spki')!
-    const originalWrapped = store.get('wrapped_master_key')!
+    const originalPublic = await mockUserKeyService.getRsaPublicKey()
+    const originalWrapped = await mockUserKeyService.getWrappedMasterKey()
     const oldPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
-    const originalUnwrapped = await masterKeyService.unwrapKey(originalWrapped, oldPrivate)
+    const originalUnwrapped = await masterKeyService.unwrapKey(originalWrapped!, oldPrivate)
 
     await rsaKeyService.rotateKeys(PASSWORD)
 
     expect(await rsaKeyService.hasKeys()).toBe(true)
 
-    const newPublic = store.get('rsa_public_key_spki')!
+    const newPublic = await mockUserKeyService.getRsaPublicKey()
     expect(newPublic).not.toBe(originalPublic)
 
     const newPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
@@ -214,9 +217,9 @@ describe('rotateRsaKeys', () => {
 
   it('rolls back storage when re-wrapping fails', async () => {
     await prepareKeysWithMaster()
-    const originalPub = store.get('rsa_public_key_spki')!
-    const originalPriv = store.get('rsa_private_key_encrypted')!
-    const originalWrapped = store.get('wrapped_master_key')!
+    const originalPub = await mockUserKeyService.getRsaPublicKey()
+    const originalPriv = await mockUserKeyService.getRsaPrivateKeyEncrypted()
+    const originalWrapped = await mockUserKeyService.getWrappedMasterKey()
 
     const spy = vi.spyOn(masterKeyService, 'wrapKey').mockImplementation(() => {
       throw new Error('simulated failure')
@@ -224,9 +227,9 @@ describe('rotateRsaKeys', () => {
 
     await expect(rsaKeyService.rotateKeys(PASSWORD)).rejects.toThrow(/RSA key rotation failed/)
 
-    expect(store.get('rsa_public_key_spki')).toBe(originalPub)
-    expect(store.get('rsa_private_key_encrypted')).toBe(originalPriv)
-    expect(store.get('wrapped_master_key')).toBe(originalWrapped)
+    expect(await mockUserKeyService.getRsaPublicKey()).toBe(originalPub)
+    expect(await mockUserKeyService.getRsaPrivateKeyEncrypted()).toBe(originalPriv)
+    expect(await mockUserKeyService.getWrappedMasterKey()).toBe(originalWrapped)
 
     spy.mockRestore()
   })

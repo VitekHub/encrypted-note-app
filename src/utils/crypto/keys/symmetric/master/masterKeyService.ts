@@ -2,8 +2,6 @@ import { fromUint8Array, toUint8Array } from 'js-base64'
 import { getWrappedMasterKey, setWrappedMasterKey } from '../../../../supabase/userKeyService'
 import type { MasterKeyService } from './types'
 
-export const WRAPPED_MASTER_KEY_NAME = 'wrapped_master_key'
-
 const MASTER_KEY_ALGORITHM = {
   name: 'AES-GCM',
   length: 256,

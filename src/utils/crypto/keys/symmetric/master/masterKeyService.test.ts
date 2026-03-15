@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { masterKeyService, WRAPPED_MASTER_KEY_NAME } from './masterKeyService'
-import { store } from '../../../testUtils'
+import { masterKeyService } from './masterKeyService'
+import { mockUserKeyService, store } from '../../../testUtils'
 
 vi.mock('../../../../supabase/userKeyService', async () => {
   const { mockUserKeyService } = await import('../../../testUtils')
@@ -82,7 +82,7 @@ describe('storeKey', () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
     await storeMasterKey(masterKey, publicKey)
-    expect(store.has(WRAPPED_MASTER_KEY_NAME)).toBe(true)
+    expect(await mockUserKeyService.getWrappedMasterKey()).not.toBeNull()
   })
 
   it('overwrites an existing wrapped key', async () => {
@@ -90,11 +90,11 @@ describe('storeKey', () => {
 
     const first = await masterKeyService.generateKey()
     await storeMasterKey(first, publicKey)
-    const storedFirst = store.get(WRAPPED_MASTER_KEY_NAME)
+    const storedFirst = await mockUserKeyService.getWrappedMasterKey()
 
     const second = await masterKeyService.generateKey()
     await storeMasterKey(second, publicKey)
-    const storedSecond = store.get(WRAPPED_MASTER_KEY_NAME)
+    const storedSecond = await mockUserKeyService.getWrappedMasterKey()
 
     expect(storedFirst).not.toBe(storedSecond)
   })
