@@ -6,7 +6,7 @@ import type { Argon2Params } from '../../../argon2Calibration/types'
  * deletion, and password rotation of the encrypted private key.
  *
  * All methods are asynchronous and rely on the Web Crypto API together with
- * the application's `cryptoKeyStorage` and `encryptField`/`decryptField`
+ * the application's `userKeyService` and `passwordDerivedService`
  * helpers.
  */
 export interface RsaKeyService {

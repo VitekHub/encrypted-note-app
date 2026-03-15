@@ -1,17 +1,8 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { loginLockoutService, LockoutError } from './loginLockoutServiceImpl'
-import { cryptoKeyStorage } from '../crypto/keyStorage'
 import { encode } from 'js-base64'
 
-vi.mock('../crypto/keyStorage', () => ({
-  cryptoKeyStorage: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-  },
-}))
-
-// Helper matching the one in loginLockoutServiceImpl
 async function calculateTestSignature(value: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(value + 'd8f9q2438hf9q284hfq2834hfq2384hf')
@@ -22,7 +13,7 @@ async function calculateTestSignature(value: string): Promise<string> {
 
 describe('loginLockoutService', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    localStorage.clear()
     vi.useFakeTimers()
   })
 
@@ -32,7 +23,6 @@ describe('loginLockoutService', () => {
 
   describe('checkLockout', () => {
     it('should pass if no lockout is set', async () => {
-      vi.mocked(cryptoKeyStorage.get).mockResolvedValue(undefined)
       await expect(loginLockoutService.checkLockout()).resolves.toBeUndefined()
     })
 
@@ -40,25 +30,20 @@ describe('loginLockoutService', () => {
       const pastTime = Date.now() - 1000
       const sig = await calculateTestSignature(pastTime.toString())
 
-      vi.mocked(cryptoKeyStorage.get).mockImplementation(async (key) => {
-        if (key === 'login_lockout_lock_until') return pastTime.toString()
-        if (key === 'login_lockout_lock_until_sig') return sig
-        return undefined
-      })
+      localStorage.setItem('login_lockout_lock_until', pastTime.toString())
+      localStorage.setItem('login_lockout_lock_until_sig', sig)
+
       await expect(loginLockoutService.checkLockout()).resolves.toBeUndefined()
     })
 
     it('should throw LockoutError if lockout is still active', async () => {
       const now = Date.now()
       vi.setSystemTime(now)
-      const futureTime = now + 5000 // locked for 5 more seconds
+      const futureTime = now + 5000
       const sig = await calculateTestSignature(futureTime.toString())
 
-      vi.mocked(cryptoKeyStorage.get).mockImplementation(async (key) => {
-        if (key === 'login_lockout_lock_until') return futureTime.toString()
-        if (key === 'login_lockout_lock_until_sig') return sig
-        return undefined
-      })
+      localStorage.setItem('login_lockout_lock_until', futureTime.toString())
+      localStorage.setItem('login_lockout_lock_until_sig', sig)
 
       await expect(loginLockoutService.checkLockout()).rejects.toThrow(LockoutError)
       await expect(loginLockoutService.checkLockout()).rejects.toThrow(
@@ -71,13 +56,9 @@ describe('loginLockoutService', () => {
       vi.setSystemTime(now)
       const futureTime = now + 5000
 
-      vi.mocked(cryptoKeyStorage.get).mockImplementation(async (key) => {
-        if (key === 'login_lockout_lock_until') return futureTime.toString()
-        if (key === 'login_lockout_lock_until_sig') return 'invalid_signature_here'
-        return undefined
-      })
+      localStorage.setItem('login_lockout_lock_until', futureTime.toString())
+      localStorage.setItem('login_lockout_lock_until_sig', 'invalid_signature_here')
 
-      // tampering defaults to max lockout (3600 seconds)
       await expect(loginLockoutService.checkLockout()).rejects.toThrow(LockoutError)
       await expect(loginLockoutService.checkLockout()).rejects.toThrow(
         'Too many failed attempts. Try again in 3600 seconds.'
@@ -87,68 +68,69 @@ describe('loginLockoutService', () => {
 
   describe('recordFailedAttempt', () => {
     it('should set 1 second lockout on first failure', async () => {
-      vi.mocked(cryptoKeyStorage.get).mockResolvedValue(undefined) // 0 attempts so far
-
       const now = Date.now()
       vi.setSystemTime(now)
 
       await loginLockoutService.recordFailedAttempt()
 
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts', '1')
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts_sig', expect.any(String))
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until', (now + 1000).toString())
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until_sig', expect.any(String))
+      expect(localStorage.getItem('login_lockout_attempts')).toBe('1')
+      expect(localStorage.getItem('login_lockout_attempts_sig')).toBe(await calculateTestSignature('1'))
+      expect(localStorage.getItem('login_lockout_lock_until')).toBe((now + 1000).toString())
+      expect(localStorage.getItem('login_lockout_lock_until_sig')).toBe(
+        await calculateTestSignature((now + 1000).toString())
+      )
     })
 
     it('should set 2 second lockout on second failure', async () => {
       const sig = await calculateTestSignature('1')
-
-      vi.mocked(cryptoKeyStorage.get).mockImplementation(async (key) => {
-        if (key === 'login_lockout_attempts') return '1'
-        if (key === 'login_lockout_attempts_sig') return sig
-        return undefined
-      })
+      localStorage.setItem('login_lockout_attempts', '1')
+      localStorage.setItem('login_lockout_attempts_sig', sig)
 
       const now = Date.now()
       vi.setSystemTime(now)
 
       await loginLockoutService.recordFailedAttempt()
 
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts', '2')
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts_sig', expect.any(String))
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until', (now + 2000).toString())
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until_sig', expect.any(String))
+      expect(localStorage.getItem('login_lockout_attempts')).toBe('2')
+      expect(localStorage.getItem('login_lockout_attempts_sig')).toBe(await calculateTestSignature('2'))
+      expect(localStorage.getItem('login_lockout_lock_until')).toBe((now + 2000).toString())
+      expect(localStorage.getItem('login_lockout_lock_until_sig')).toBe(
+        await calculateTestSignature((now + 2000).toString())
+      )
     })
 
     it('should cap out at 1 hour for >= 10 failures', async () => {
       const sig = await calculateTestSignature('15')
-
-      vi.mocked(cryptoKeyStorage.get).mockImplementation(async (key) => {
-        if (key === 'login_lockout_attempts') return '15'
-        if (key === 'login_lockout_attempts_sig') return sig
-        return undefined
-      })
+      localStorage.setItem('login_lockout_attempts', '15')
+      localStorage.setItem('login_lockout_attempts_sig', sig)
 
       const now = Date.now()
       vi.setSystemTime(now)
 
       await loginLockoutService.recordFailedAttempt()
 
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts', '16')
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_attempts_sig', expect.any(String))
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until', (now + 3600000).toString())
-      expect(cryptoKeyStorage.set).toHaveBeenCalledWith('login_lockout_lock_until_sig', expect.any(String))
+      expect(localStorage.getItem('login_lockout_attempts')).toBe('16')
+      expect(localStorage.getItem('login_lockout_attempts_sig')).toBe(await calculateTestSignature('16'))
+      expect(localStorage.getItem('login_lockout_lock_until')).toBe((now + 3600000).toString())
+      expect(localStorage.getItem('login_lockout_lock_until_sig')).toBe(
+        await calculateTestSignature((now + 3600000).toString())
+      )
     })
   })
 
   describe('reset', () => {
     it('should clear all 4 storage keys', async () => {
+      localStorage.setItem('login_lockout_attempts', '3')
+      localStorage.setItem('login_lockout_attempts_sig', 'sig')
+      localStorage.setItem('login_lockout_lock_until', '12345')
+      localStorage.setItem('login_lockout_lock_until_sig', 'sig2')
+
       await loginLockoutService.reset()
 
-      expect(cryptoKeyStorage.delete).toHaveBeenCalledWith('login_lockout_attempts')
-      expect(cryptoKeyStorage.delete).toHaveBeenCalledWith('login_lockout_attempts_sig')
-      expect(cryptoKeyStorage.delete).toHaveBeenCalledWith('login_lockout_lock_until')
-      expect(cryptoKeyStorage.delete).toHaveBeenCalledWith('login_lockout_lock_until_sig')
+      expect(localStorage.getItem('login_lockout_attempts')).toBeNull()
+      expect(localStorage.getItem('login_lockout_attempts_sig')).toBeNull()
+      expect(localStorage.getItem('login_lockout_lock_until')).toBeNull()
+      expect(localStorage.getItem('login_lockout_lock_until_sig')).toBeNull()
     })
   })
 })

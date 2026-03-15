@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getPasswordStrength } from '../../utils/passwordPolicy'
+import { getPasswordStrength } from '../../utils/auth/passwordPolicy'
 
 const props = defineProps<{
   password: string

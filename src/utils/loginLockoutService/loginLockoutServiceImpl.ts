@@ -1,4 +1,3 @@
-import { cryptoKeyStorage } from '../crypto/keyStorage'
 import type { LoginLockoutService } from './types'
 import { encode } from 'js-base64'
 
@@ -32,8 +31,8 @@ export class LockoutError extends Error {
 export const loginLockoutService: LoginLockoutService = {
   /** @inheritdoc */
   async checkLockout(): Promise<void> {
-    const lockUntilStr = await cryptoKeyStorage.get(LOCK_UNTIL_KEY)
-    const lockUntilSig = await cryptoKeyStorage.get(LOCK_UNTIL_SIG_KEY)
+    const lockUntilStr = localStorage.getItem(LOCK_UNTIL_KEY)
+    const lockUntilSig = localStorage.getItem(LOCK_UNTIL_SIG_KEY)
 
     if (!lockUntilStr) return
 
@@ -55,8 +54,8 @@ export const loginLockoutService: LoginLockoutService = {
   /** @inheritdoc */
   async recordFailedAttempt(): Promise<void> {
     let attempts = 0
-    const attemptsStr = await cryptoKeyStorage.get(ATTEMPTS_KEY)
-    const attemptsSig = await cryptoKeyStorage.get(ATTEMPTS_SIG_KEY)
+    const attemptsStr = localStorage.getItem(ATTEMPTS_KEY)
+    const attemptsSig = localStorage.getItem(ATTEMPTS_SIG_KEY)
 
     // Only trust the previous attempts count if the signature matches
     if (attemptsStr && attemptsSig && attemptsSig === (await calculateSignature(attemptsStr))) {
@@ -71,21 +70,22 @@ export const loginLockoutService: LoginLockoutService = {
     const lockoutDurationMs = BACKOFF_DURATIONS_SECONDS[backoffIndex] * 1000
     const lockUntil = Date.now() + lockoutDurationMs
 
-    await Promise.all([
-      cryptoKeyStorage.set(ATTEMPTS_KEY, attempts.toString()),
-      cryptoKeyStorage.set(ATTEMPTS_SIG_KEY, await calculateSignature(attempts.toString())),
-      cryptoKeyStorage.set(LOCK_UNTIL_KEY, lockUntil.toString()),
-      cryptoKeyStorage.set(LOCK_UNTIL_SIG_KEY, await calculateSignature(lockUntil.toString())),
+    const [attemptsSigNew, lockUntilSigNew] = await Promise.all([
+      calculateSignature(attempts.toString()),
+      calculateSignature(lockUntil.toString()),
     ])
+
+    localStorage.setItem(ATTEMPTS_KEY, attempts.toString())
+    localStorage.setItem(ATTEMPTS_SIG_KEY, attemptsSigNew)
+    localStorage.setItem(LOCK_UNTIL_KEY, lockUntil.toString())
+    localStorage.setItem(LOCK_UNTIL_SIG_KEY, lockUntilSigNew)
   },
 
   /** @inheritdoc */
   async reset(): Promise<void> {
-    await Promise.all([
-      cryptoKeyStorage.delete(ATTEMPTS_KEY),
-      cryptoKeyStorage.delete(ATTEMPTS_SIG_KEY),
-      cryptoKeyStorage.delete(LOCK_UNTIL_KEY),
-      cryptoKeyStorage.delete(LOCK_UNTIL_SIG_KEY),
-    ])
+    localStorage.removeItem(ATTEMPTS_KEY)
+    localStorage.removeItem(ATTEMPTS_SIG_KEY)
+    localStorage.removeItem(LOCK_UNTIL_KEY)
+    localStorage.removeItem(LOCK_UNTIL_SIG_KEY)
   },
 }

@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { validatePassword, getPasswordStrength } from '../../utils/passwordPolicy'
+import { validatePassword, getPasswordStrength } from '../../utils/auth/passwordPolicy'
 import { validateUsername, isUsernameAvailable } from '../../utils/auth/usernameAuthService'
 import PasswordStrength from './PasswordStrength.vue'
 import BaseInput from '../ui/BaseInput.vue'
