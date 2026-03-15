@@ -88,10 +88,14 @@ export interface CryptoService {
   rotateRsaKeys(password: string): Promise<void>
 
   /**
-   * Re-encrypts the stored private key under a new password without
+   * Re-encrypts the stored RSA private key under a new password without
    * regenerating the key material itself.  The existing ciphertext is
    * decrypted with `oldPassword` and immediately re-encrypted with
    * `newPassword`, then written back to storage.
+   *
+   * Does NOT update Supabase Auth credentials — callers are responsible for
+   * deriving the new auth token and calling `supabase.auth.updateUser` before
+   * (or after) invoking this method.
    *
    * @param oldPassword - The current master password used to decrypt the
    *   existing private key blob.

@@ -3,7 +3,15 @@ import { defineStore } from 'pinia'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import { useSettingsStore } from './settingsStore'
 import { useNoteStore } from './noteStore'
-import { signUp, signIn, signOut, deleteAccount, getCurrentSession } from '../utils/auth/usernameAuthService'
+import {
+  signUp,
+  signIn,
+  signOut,
+  deleteAccount,
+  getCurrentSession,
+  deriveAuthToken,
+} from '../utils/auth/usernameAuthService'
+import { supabase } from '../lib/supabase'
 import { loginLockoutService, LockoutError } from '../utils/loginLockoutService'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -145,6 +153,24 @@ export const useAuthStore = defineStore('auth', () => {
     await signOut()
   }
 
+  async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    const currentUsername = username.value
+    if (!currentUsername) throw new Error('Not authenticated')
+
+    const oldAuthToken = await deriveAuthToken(currentUsername, oldPassword)
+    const newAuthToken = await deriveAuthToken(currentUsername, newPassword)
+
+    const { error: authError } = await supabase.auth.updateUser({ password: newAuthToken })
+    if (authError) throw new Error(authError.message)
+
+    try {
+      await cryptoService.updatePassword(oldPassword, newPassword)
+    } catch (cryptoError) {
+      await supabase.auth.updateUser({ password: oldAuthToken })
+      throw cryptoError
+    }
+  }
+
   async function teardown(): Promise<void> {
     await cryptoService.teardown()
     await deleteAccount()
@@ -179,6 +205,7 @@ export const useAuthStore = defineStore('auth', () => {
     unlockExistingSession,
     lock,
     logout,
+    changePassword,
     teardown,
   }
 })

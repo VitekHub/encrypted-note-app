@@ -24,7 +24,7 @@ function usernameToEmail(username: string): string {
  * @param password - User's plaintext password
  * @returns Hex string to use as the Supabase Auth password
  */
-async function deriveAuthToken(username: string, password: string): Promise<string> {
+export async function deriveAuthToken(username: string, password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(`${username.toLowerCase()}:${password}`)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
