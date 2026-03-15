@@ -8,9 +8,9 @@ const AAD = 'v1:user123:note'
 const PLAINTEXT = 'Field secret data'
 const FIELD = 'note'
 
-vi.mock('../../../keyStorage', async () => {
-  const { mockCryptoKeyStorage } = await import('../../../testUtils')
-  return { cryptoKeyStorage: mockCryptoKeyStorage }
+vi.mock('../../../../supabase/userKeyService', async () => {
+  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
+  return mockSupabaseColumnKeyStorage
 })
 
 async function loadMasterKey(rsaPrivateKey: CryptoKey): Promise<CryptoKey> {

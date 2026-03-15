@@ -1,0 +1,227 @@
+import { supabase } from '../../lib/supabase'
+
+export interface UserKeysRow {
+  rsa_public_key_spki: string | null
+  rsa_private_key_encrypted: string | null
+  rsa_key_version: string | null
+  wrapped_master_key: string | null
+}
+
+export interface LoginLockoutRow {
+  attempts: string | null
+  attempts_sig: string | null
+  lock_until: string | null
+  lock_until_sig: string | null
+}
+
+/**
+ * Resolves the authenticated user's Supabase ID from the active session.
+ *
+ * @returns The current user's UUID
+ * @throws If there is no active Supabase session
+ */
+async function getUserId(): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) throw new Error('No active Supabase session')
+  return session.user.id
+}
+
+/**
+ * Upserts one or more fields in the `user_keys` row for the given user.
+ *
+ * Uses an upsert on `user_id` so that subsequent calls for the same user
+ * replace the previous values rather than inserting a duplicate row.
+ *
+ * @param userId - The authenticated user's UUID
+ * @param fields - Partial set of `UserKeysRow` fields to write
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+async function upsertUserKeys(userId: string, fields: Partial<UserKeysRow>): Promise<void> {
+  const { error } = await supabase
+    .from('user_keys')
+    .upsert({ user_id: userId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+  if (error) throw new Error(`Failed to upsert user_keys: ${error.message}`)
+}
+
+/**
+ * Retrieves the RSA public key (SPKI format, base64-encoded) for the
+ * authenticated user.
+ *
+ * @returns The stored public key string, or `null` if none exists
+ * @throws If the database query fails
+ */
+export async function getRsaPublicKey(): Promise<string | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from('user_keys')
+    .select('rsa_public_key_spki')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to get rsa_public_key_spki: ${error.message}`)
+  return data?.rsa_public_key_spki ?? null
+}
+
+/**
+ * Stores the RSA public key (SPKI format, base64-encoded) for the
+ * authenticated user.
+ *
+ * @param value - Base64-encoded SPKI public key to store
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+export async function setRsaPublicKey(value: string): Promise<void> {
+  const userId = await getUserId()
+  await upsertUserKeys(userId, { rsa_public_key_spki: value })
+}
+
+/**
+ * Retrieves the encrypted RSA private key (base64-encoded ciphertext) for
+ * the authenticated user.
+ *
+ * @returns The stored encrypted private key string, or `null` if none exists
+ * @throws If the database query fails
+ */
+export async function getRsaPrivateKeyEncrypted(): Promise<string | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from('user_keys')
+    .select('rsa_private_key_encrypted')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to get rsa_private_key_encrypted: ${error.message}`)
+  return data?.rsa_private_key_encrypted ?? null
+}
+
+/**
+ * Stores the encrypted RSA private key (base64-encoded ciphertext) for
+ * the authenticated user.
+ *
+ * @param value - Base64-encoded encrypted private key to store
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+export async function setRsaPrivateKeyEncrypted(value: string): Promise<void> {
+  const userId = await getUserId()
+  await upsertUserKeys(userId, { rsa_private_key_encrypted: value })
+}
+
+/**
+ * Retrieves the RSA key version string for the authenticated user.
+ *
+ * @returns The stored key version string (e.g. `"rsa_v1"`), or `null` if none exists
+ * @throws If the database query fails
+ */
+export async function getRsaKeyVersion(): Promise<string | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase.from('user_keys').select('rsa_key_version').eq('user_id', userId).maybeSingle()
+  if (error) throw new Error(`Failed to get rsa_key_version: ${error.message}`)
+  return data?.rsa_key_version ?? null
+}
+
+/**
+ * Stores the RSA key version string for the authenticated user.
+ *
+ * @param value - Key version identifier to store (e.g. `"rsa_v1"`)
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+export async function setRsaKeyVersion(value: string): Promise<void> {
+  const userId = await getUserId()
+  await upsertUserKeys(userId, { rsa_key_version: value })
+}
+
+/**
+ * Retrieves the wrapped (RSA-encrypted) master key for the authenticated
+ * user.
+ *
+ * @returns The stored wrapped master key string (base64-encoded), or `null` if none exists
+ * @throws If the database query fails
+ */
+export async function getWrappedMasterKey(): Promise<string | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from('user_keys')
+    .select('wrapped_master_key')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to get wrapped_master_key: ${error.message}`)
+  return data?.wrapped_master_key ?? null
+}
+
+/**
+ * Stores the wrapped (RSA-encrypted) master key for the authenticated user.
+ *
+ * @param value - Base64-encoded wrapped master key to store
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+export async function setWrappedMasterKey(value: string): Promise<void> {
+  const userId = await getUserId()
+  await upsertUserKeys(userId, { wrapped_master_key: value })
+}
+
+/**
+ * Deletes the entire `user_keys` row for the authenticated user.
+ *
+ * Used during account teardown to remove all stored cryptographic material.
+ *
+ * @returns Promise that resolves when the deletion completes
+ * @throws If the database delete fails
+ */
+export async function deleteUserKeysRow(): Promise<void> {
+  const userId = await getUserId()
+  const { error } = await supabase.from('user_keys').delete().eq('user_id', userId)
+  if (error) throw new Error(`Failed to delete user_keys row: ${error.message}`)
+}
+
+/**
+ * Retrieves the login lockout record for the authenticated user.
+ *
+ * @returns The stored `LoginLockoutRow`, or `null` if no record exists
+ * @throws If the database query fails
+ */
+export async function getLoginLockout(): Promise<LoginLockoutRow | null> {
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from('login_lockout')
+    .select('attempts, attempts_sig, lock_until, lock_until_sig')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to get login_lockout: ${error.message}`)
+  return data ?? null
+}
+
+/**
+ * Creates or updates the login lockout record for the authenticated user.
+ *
+ * Uses an upsert on `user_id` so that subsequent calls replace the existing
+ * record rather than inserting a duplicate row.
+ *
+ * @param fields - Partial set of `LoginLockoutRow` fields to write
+ * @returns Promise that resolves when the write completes
+ * @throws If the database upsert fails
+ */
+export async function setLoginLockout(fields: Partial<LoginLockoutRow>): Promise<void> {
+  const userId = await getUserId()
+  const { error } = await supabase
+    .from('login_lockout')
+    .upsert({ user_id: userId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+  if (error) throw new Error(`Failed to upsert login_lockout: ${error.message}`)
+}
+
+/**
+ * Deletes the login lockout record for the authenticated user.
+ *
+ * Called after a successful login to reset the failed-attempt counter.
+ *
+ * @returns Promise that resolves when the deletion completes
+ * @throws If the database delete fails
+ */
+export async function clearLoginLockout(): Promise<void> {
+  const userId = await getUserId()
+  const { error } = await supabase.from('login_lockout').delete().eq('user_id', userId)
+  if (error) throw new Error(`Failed to clear login_lockout: ${error.message}`)
+}

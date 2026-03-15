@@ -86,13 +86,6 @@ export interface MasterKeyService {
   hasKey(): Promise<boolean>
 
   /**
-   * Permanently deletes the stored wrapped Master Key from storage.
-   *
-   * @returns {Promise<void>} A promise that resolves when the key has been deleted.
-   */
-  deleteKey(): Promise<void>
-
-  /**
    * Validates whether a blob appears to be a valid master-key-encrypted format.
    *
    * Performs basic structural validation (minimum length, valid base64),

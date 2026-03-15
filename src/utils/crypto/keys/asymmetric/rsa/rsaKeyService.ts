@@ -1,18 +1,15 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
 import { passwordDerivedService } from '../../../keys/symmetric/passwordDerived'
 import { masterKeyService } from '../../../keys/symmetric/master'
-import { cryptoKeyStorage } from '../../../keyStorage'
+import {
+  getRsaPublicKey,
+  setRsaPublicKey,
+  getRsaPrivateKeyEncrypted,
+  setRsaPrivateKeyEncrypted,
+  setRsaKeyVersion,
+} from '../../../../supabase/userKeyService'
 import type { RsaKeyService } from './types'
 import type { Argon2Params } from '../../../argon2Calibration/types'
-
-/** Key name under which the RSA public key (SPKI format, base64) is stored */
-const RSA_PUBLIC_KEY_NAME = 'rsa_public_key_spki'
-
-/** Key name under which the encrypted RSA private key is stored */
-const RSA_PRIVATE_KEY_ENCRYPTED_NAME = 'rsa_private_key_encrypted'
-
-/** Key name under which the RSA key version is stored */
-const RSA_KEY_VERSION_NAME = 'rsa_key_version'
 
 /** AAD used when encrypting the RSA private key with encryptField() */
 const RSA_PRIVATE_KEY_AAD = 'rsa_private_key_wrapper_v1'
@@ -80,15 +77,15 @@ export const rsaKeyService: RsaKeyService = {
 
     // 3. Store both keys
     await Promise.all([
-      cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, publicKeyBase64),
-      cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, encryptedPrivateKey),
-      cryptoKeyStorage.set(RSA_KEY_VERSION_NAME, RSA_KEY_VERSION),
+      setRsaPublicKey(publicKeyBase64),
+      setRsaPrivateKeyEncrypted(encryptedPrivateKey),
+      setRsaKeyVersion(RSA_KEY_VERSION),
     ])
   },
 
   /** @inheritdoc */
   async loadPublicKey(): Promise<CryptoKey> {
-    const stored = await cryptoKeyStorage.get(RSA_PUBLIC_KEY_NAME)
+    const stored = await getRsaPublicKey()
     if (!stored) throw new Error('RSA public key not found in storage')
 
     return crypto.subtle.importKey(
@@ -102,7 +99,7 @@ export const rsaKeyService: RsaKeyService = {
 
   /** @inheritdoc */
   async loadPrivateKey(password: string): Promise<CryptoKey> {
-    const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
+    const stored = await getRsaPrivateKeyEncrypted()
     if (!stored) throw new Error('RSA private key not found in storage')
 
     const privateKeyBase64 = await passwordDerivedService.decrypt(stored, password, RSA_PRIVATE_KEY_AAD)
@@ -118,24 +115,13 @@ export const rsaKeyService: RsaKeyService = {
 
   /** @inheritdoc */
   async hasKeys(): Promise<boolean> {
-    const [hasPublic, hasPrivate] = await Promise.all([
-      cryptoKeyStorage.has(RSA_PUBLIC_KEY_NAME),
-      cryptoKeyStorage.has(RSA_PRIVATE_KEY_ENCRYPTED_NAME),
-    ])
-    return hasPublic && hasPrivate
-  },
-
-  /** @inheritdoc */
-  async deleteKeys(): Promise<void> {
-    await Promise.all([
-      cryptoKeyStorage.delete(RSA_PUBLIC_KEY_NAME),
-      cryptoKeyStorage.delete(RSA_PRIVATE_KEY_ENCRYPTED_NAME),
-    ])
+    const [pub, priv] = await Promise.all([getRsaPublicKey(), getRsaPrivateKeyEncrypted()])
+    return pub !== null && priv !== null
   },
 
   /** @inheritdoc */
   async reEncryptPrivateKey(oldPassword: string, newPassword: string, newParams?: Argon2Params): Promise<void> {
-    const stored = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
+    const stored = await getRsaPrivateKeyEncrypted()
     if (!stored) throw new Error('RSA private key not found in storage')
 
     // Decrypt with the default singleton (reads params from blob metadata)
@@ -147,14 +133,14 @@ export const rsaKeyService: RsaKeyService = {
     // Re-encrypt with currently active params for a stronger wrapper
     const reEncrypted = await passwordDerivedService.encrypt(privateKeyBase64, newPassword, RSA_PRIVATE_KEY_AAD)
 
-    await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, reEncrypted)
+    await setRsaPrivateKeyEncrypted(reEncrypted)
   },
 
   /** @inheritdoc */
   async rotateKeys(password: string): Promise<void> {
     // Backup old keys
-    const oldEncryptedPrivate = await cryptoKeyStorage.get(RSA_PRIVATE_KEY_ENCRYPTED_NAME)
-    const oldPublic = await cryptoKeyStorage.get(RSA_PUBLIC_KEY_NAME)
+    const oldEncryptedPrivate = await getRsaPrivateKeyEncrypted()
+    const oldPublic = await getRsaPublicKey()
     const oldWrappedMaster = await masterKeyService.loadKey()
 
     if (!oldEncryptedPrivate || !oldPublic || !oldWrappedMaster) {
@@ -180,8 +166,8 @@ export const rsaKeyService: RsaKeyService = {
       // But to be safe, we can clear any temp if added
     } catch (error) {
       // Rollback: restore old keys
-      await cryptoKeyStorage.set(RSA_PRIVATE_KEY_ENCRYPTED_NAME, oldEncryptedPrivate)
-      await cryptoKeyStorage.set(RSA_PUBLIC_KEY_NAME, oldPublic)
+      await setRsaPrivateKeyEncrypted(oldEncryptedPrivate)
+      await setRsaPublicKey(oldPublic)
       await masterKeyService.storeKey(oldWrappedMaster)
       throw new Error(
         `RSA key rotation failed: ${error instanceof Error && error.message ? error.message : 'Unknown error'}`

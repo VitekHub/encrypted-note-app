@@ -61,14 +61,6 @@ export interface RsaKeyService {
   hasKeys(): Promise<boolean>
 
   /**
-   * Removes both the public and private keys from storage. Both deletions
-   * are performed concurrently.
-   *
-   * @returns A promise that resolves once both keys have been deleted.
-   */
-  deleteKeys(): Promise<void>
-
-  /**
    * Re-encrypts the stored private key under a new password without
    * regenerating the key material itself.  The existing ciphertext is
    * decrypted with `oldPassword` and immediately re-encrypted with

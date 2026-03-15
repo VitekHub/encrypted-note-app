@@ -1,8 +1,7 @@
 import { fromUint8Array, toUint8Array } from 'js-base64'
-import { cryptoKeyStorage } from '../../../keyStorage'
+import { getWrappedMasterKey, setWrappedMasterKey } from '../../../../supabase/userKeyService'
 import type { MasterKeyService } from './types'
 
-/** Key name under which the wrapped master key is stored */
 export const WRAPPED_MASTER_KEY_NAME = 'wrapped_master_key'
 
 const MASTER_KEY_ALGORITHM = {
@@ -75,12 +74,12 @@ export const masterKeyService: MasterKeyService = {
 
   /** @inheritdoc */
   async storeKey(wrappedMasterKeyBase64: string): Promise<void> {
-    await cryptoKeyStorage.set(WRAPPED_MASTER_KEY_NAME, wrappedMasterKeyBase64)
+    await setWrappedMasterKey(wrappedMasterKeyBase64)
   },
 
   /** @inheritdoc */
   async loadKey(): Promise<string> {
-    const wrappedMasterKey = await cryptoKeyStorage.get(WRAPPED_MASTER_KEY_NAME)
+    const wrappedMasterKey = await getWrappedMasterKey()
     if (!wrappedMasterKey) throw new Error('Wrapped Master key not found in storage')
     return wrappedMasterKey
   },
@@ -120,12 +119,7 @@ export const masterKeyService: MasterKeyService = {
 
   /** @inheritdoc */
   async hasKey(): Promise<boolean> {
-    return cryptoKeyStorage.has(WRAPPED_MASTER_KEY_NAME)
-  },
-
-  /** @inheritdoc */
-  async deleteKey(): Promise<void> {
-    await cryptoKeyStorage.delete(WRAPPED_MASTER_KEY_NAME)
+    return (await getWrappedMasterKey()) !== null
   },
 
   /** @inheritdoc */

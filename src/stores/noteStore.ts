@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { storeToRefs } from 'pinia'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import { useAuthStore } from './authStore'
-import { getUserData, setUserData, deleteUserData, hasUserData } from '../utils/userDataService'
+import { getUserData, setUserData, deleteUserData, hasUserData } from '../utils/supabase/userDataService'
 
 const DATA_KEY = 'note'
 

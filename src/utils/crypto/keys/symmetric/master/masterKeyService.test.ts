@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { masterKeyService, WRAPPED_MASTER_KEY_NAME } from './masterKeyService'
 import { store } from '../../../testUtils'
 
-vi.mock('../../../keyStorage', async () => {
-  const { mockCryptoKeyStorage } = await import('../../../testUtils')
-  return { cryptoKeyStorage: mockCryptoKeyStorage }
+vi.mock('../../../../supabase/userKeyService', async () => {
+  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
+  return mockSupabaseColumnKeyStorage
 })
 
 async function generateRsaKeyPair(): Promise<CryptoKeyPair> {
@@ -138,24 +138,6 @@ describe('loadKey', () => {
   })
 })
 
-describe('deleteKey', () => {
-  it('makes hasKey return false after deleting', async () => {
-    const { publicKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await storeMasterKey(masterKey, publicKey)
-    await masterKeyService.deleteKey()
-    expect(await masterKeyService.hasKey()).toBe(false)
-  })
-
-  it('makes loadKey throw after deleting', async () => {
-    const { publicKey, privateKey } = await generateRsaKeyPair()
-    const masterKey = await masterKeyService.generateKey()
-    await storeMasterKey(masterKey, publicKey)
-    await masterKeyService.deleteKey()
-    await expect(loadMasterKey(privateKey)).rejects.toThrow()
-  })
-})
-
 describe('isEncrypted', () => {
   it('returns false for empty string', () => {
     expect(masterKeyService.isEncrypted('')).toBe(false)
@@ -171,7 +153,7 @@ describe('isEncrypted', () => {
 })
 
 describe('round-trip lifecycle', () => {
-  it('full lifecycle: generate → store → load → delete', async () => {
+  it('full lifecycle: generate → store → load', async () => {
     const { publicKey, privateKey } = await generateRsaKeyPair()
 
     const masterKey = await masterKeyService.generateKey()
@@ -183,8 +165,5 @@ describe('round-trip lifecycle', () => {
 
     expect(loaded.type).toBe('secret')
     expect(loaded.algorithm).toMatchObject({ name: 'HKDF' })
-
-    await masterKeyService.deleteKey()
-    expect(await masterKeyService.hasKey()).toBe(false)
   })
 })

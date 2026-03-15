@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { argon2CalibrationService, type Argon2Params, type CalibrationResult } from '../utils/crypto/argon2Calibration'
-import { getUserData, setUserData } from '../utils/userDataService'
+import { getUserData, setUserData } from '../utils/supabase/userDataService'
 
 export interface AppSettings {
   idleTimeoutMinutes: number

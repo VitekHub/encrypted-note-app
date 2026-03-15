@@ -3,9 +3,9 @@ import { rsaKeyService } from './rsaKeyService'
 const { masterKeyService } = await import('../../../keys/symmetric/master')
 import { store } from '../../../testUtils'
 
-vi.mock('../../../keyStorage', async () => {
-  const { mockCryptoKeyStorage } = await import('../../../testUtils')
-  return { cryptoKeyStorage: mockCryptoKeyStorage }
+vi.mock('../../../../supabase/userKeyService', async () => {
+  const { mockSupabaseColumnKeyStorage } = await import('../../../testUtils')
+  return mockSupabaseColumnKeyStorage
 })
 
 const PASSWORD = 'test-password-rsa'
@@ -125,15 +125,6 @@ describe('loadPrivateKey', () => {
   })
 })
 
-describe('deleteKeys', () => {
-  it('makes hasKeys return false after deleting', async () => {
-    const keyPair = await rsaKeyService.generateKeys()
-    await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    await rsaKeyService.deleteKeys()
-    expect(await rsaKeyService.hasKeys()).toBe(false)
-  })
-})
-
 describe('reEncryptPrivateKey', () => {
   it('changes the stored encrypted private key blob', async () => {
     const keyPair = await rsaKeyService.generateKeys()
@@ -165,7 +156,7 @@ describe('reEncryptPrivateKey', () => {
 })
 
 describe('round-trip lifecycle', () => {
-  it('full lifecycle: generate → store → load both keys → delete', async () => {
+  it('full lifecycle: generate → store → load both keys', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
 
@@ -174,8 +165,7 @@ describe('round-trip lifecycle', () => {
     expect(publicKey.type).toBe('public')
     expect(privateKey.type).toBe('private')
 
-    await rsaKeyService.deleteKeys()
-    expect(await rsaKeyService.hasKeys()).toBe(false)
+    expect(await rsaKeyService.hasKeys()).toBe(true)
   })
 
   it('password rotation round-trip', async () => {
