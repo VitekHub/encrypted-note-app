@@ -21,7 +21,7 @@ async function getUserId(): Promise<string> {
  * @returns The stored string value, or `null` if no entry exists for this key
  * @throws If the database query fails
  */
-export async function getUserData(dataKey: string): Promise<string | null> {
+export async function fetchUserData(dataKey: string): Promise<string | null> {
   const userId = await getUserId()
   const { data, error } = await supabase
     .from('user_data')
@@ -30,7 +30,7 @@ export async function getUserData(dataKey: string): Promise<string | null> {
     .eq('data_key', dataKey)
     .maybeSingle()
 
-  if (error) throw new Error(`Failed to get data "${dataKey}": ${error.message}`)
+  if (error) throw new Error(`Failed to fetch data "${dataKey}": ${error.message}`)
   return data?.data_value ?? null
 }
 
@@ -46,7 +46,7 @@ export async function getUserData(dataKey: string): Promise<string | null> {
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-export async function setUserData(dataKey: string, dataValue: string): Promise<void> {
+export async function saveUserData(dataKey: string, dataValue: string): Promise<void> {
   const userId = await getUserId()
   const { error } = await supabase.from('user_data').upsert(
     {
@@ -57,7 +57,7 @@ export async function setUserData(dataKey: string, dataValue: string): Promise<v
     },
     { onConflict: 'user_id,data_key' }
   )
-  if (error) throw new Error(`Failed to set data "${dataKey}": ${error.message}`)
+  if (error) throw new Error(`Failed to save data "${dataKey}": ${error.message}`)
 }
 
 /**
@@ -81,6 +81,6 @@ export async function deleteUserData(dataKey: string): Promise<void> {
  * @returns `true` if an entry exists, `false` otherwise
  */
 export async function hasUserData(dataKey: string): Promise<boolean> {
-  const value = await getUserData(dataKey)
+  const value = await fetchUserData(dataKey)
   return value !== null
 }

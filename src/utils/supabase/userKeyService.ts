@@ -46,14 +46,14 @@ async function upsertUserKeys(userId: string, fields: Partial<UserKeysRow>): Pro
  * @returns The stored public key string, or `null` if none exists
  * @throws If the database query fails
  */
-export async function getRsaPublicKey(): Promise<string | null> {
+export async function fetchRsaPublicKey(): Promise<string | null> {
   const userId = await getUserId()
   const { data, error } = await supabase
     .from('user_keys')
     .select('rsa_public_key_spki')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) throw new Error(`Failed to get rsa_public_key_spki: ${error.message}`)
+  if (error) throw new Error(`Failed to fetch rsa_public_key_spki: ${error.message}`)
   return data?.rsa_public_key_spki ?? null
 }
 
@@ -65,7 +65,7 @@ export async function getRsaPublicKey(): Promise<string | null> {
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-export async function setRsaPublicKey(value: string): Promise<void> {
+export async function saveRsaPublicKey(value: string): Promise<void> {
   const userId = await getUserId()
   await upsertUserKeys(userId, { rsa_public_key_spki: value })
 }
@@ -77,14 +77,14 @@ export async function setRsaPublicKey(value: string): Promise<void> {
  * @returns The stored encrypted private key string, or `null` if none exists
  * @throws If the database query fails
  */
-export async function getRsaPrivateKeyEncrypted(): Promise<string | null> {
+export async function fetchRsaPrivateKeyEncrypted(): Promise<string | null> {
   const userId = await getUserId()
   const { data, error } = await supabase
     .from('user_keys')
     .select('rsa_private_key_encrypted')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) throw new Error(`Failed to get rsa_private_key_encrypted: ${error.message}`)
+  if (error) throw new Error(`Failed to fetch rsa_private_key_encrypted: ${error.message}`)
   return data?.rsa_private_key_encrypted ?? null
 }
 
@@ -96,7 +96,7 @@ export async function getRsaPrivateKeyEncrypted(): Promise<string | null> {
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-export async function setRsaPrivateKeyEncrypted(value: string): Promise<void> {
+export async function saveRsaPrivateKeyEncrypted(value: string): Promise<void> {
   const userId = await getUserId()
   await upsertUserKeys(userId, { rsa_private_key_encrypted: value })
 }
@@ -107,10 +107,10 @@ export async function setRsaPrivateKeyEncrypted(value: string): Promise<void> {
  * @returns The stored key version string (e.g. `"rsa_v1"`), or `null` if none exists
  * @throws If the database query fails
  */
-export async function getRsaKeyVersion(): Promise<string | null> {
+export async function fetchRsaKeyVersion(): Promise<string | null> {
   const userId = await getUserId()
   const { data, error } = await supabase.from('user_keys').select('rsa_key_version').eq('user_id', userId).maybeSingle()
-  if (error) throw new Error(`Failed to get rsa_key_version: ${error.message}`)
+  if (error) throw new Error(`Failed to fetch rsa_key_version: ${error.message}`)
   return data?.rsa_key_version ?? null
 }
 
@@ -121,7 +121,7 @@ export async function getRsaKeyVersion(): Promise<string | null> {
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-export async function setRsaKeyVersion(value: string): Promise<void> {
+export async function saveRsaKeyVersion(value: string): Promise<void> {
   const userId = await getUserId()
   await upsertUserKeys(userId, { rsa_key_version: value })
 }
@@ -133,14 +133,14 @@ export async function setRsaKeyVersion(value: string): Promise<void> {
  * @returns The stored wrapped master key string (base64-encoded), or `null` if none exists
  * @throws If the database query fails
  */
-export async function getWrappedMasterKey(): Promise<string | null> {
+export async function fetchWrappedMasterKey(): Promise<string | null> {
   const userId = await getUserId()
   const { data, error } = await supabase
     .from('user_keys')
     .select('wrapped_master_key')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) throw new Error(`Failed to get wrapped_master_key: ${error.message}`)
+  if (error) throw new Error(`Failed to fetch wrapped_master_key: ${error.message}`)
   return data?.wrapped_master_key ?? null
 }
 
@@ -151,7 +151,7 @@ export async function getWrappedMasterKey(): Promise<string | null> {
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-export async function setWrappedMasterKey(value: string): Promise<void> {
+export async function saveWrappedMasterKey(value: string): Promise<void> {
   const userId = await getUserId()
   await upsertUserKeys(userId, { wrapped_master_key: value })
 }

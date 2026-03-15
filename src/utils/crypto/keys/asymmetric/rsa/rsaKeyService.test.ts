@@ -78,16 +78,16 @@ describe('hasKeys', () => {
     const keyPair = await rsaKeyService.generateKeys()
     const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey)
     const { fromUint8Array } = await import('js-base64')
-    await mockUserKeyService.setRsaPublicKey(fromUint8Array(new Uint8Array(spki)))
+    await mockUserKeyService.saveRsaPublicKey(fromUint8Array(new Uint8Array(spki)))
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
 
   it('returns false when only the private key is present', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    const encryptedPrivate = await mockUserKeyService.getRsaPrivateKeyEncrypted()
+    const encryptedPrivate = await mockUserKeyService.fetchRsaPrivateKeyEncrypted()
     await mockUserKeyService.deleteUserKeysRow()
-    await mockUserKeyService.setRsaPrivateKeyEncrypted(encryptedPrivate!)
+    await mockUserKeyService.saveRsaPrivateKeyEncrypted(encryptedPrivate!)
     expect(await rsaKeyService.hasKeys()).toBe(false)
   })
 })
@@ -132,9 +132,9 @@ describe('reEncryptPrivateKey', () => {
   it('changes the stored encrypted private key blob', async () => {
     const keyPair = await rsaKeyService.generateKeys()
     await rsaKeyService.storeKeys(keyPair, PASSWORD)
-    const before = await mockUserKeyService.getRsaPrivateKeyEncrypted()
+    const before = await mockUserKeyService.fetchRsaPrivateKeyEncrypted()
     await rsaKeyService.reEncryptPrivateKey(PASSWORD, NEW_PASSWORD)
-    const after = await mockUserKeyService.getRsaPrivateKeyEncrypted()
+    const after = await mockUserKeyService.fetchRsaPrivateKeyEncrypted()
     expect(after).not.toBe(before)
   })
 
@@ -189,8 +189,8 @@ describe('rotateRsaKeys', () => {
   it('creates a new key pair and leaves master key intact', async () => {
     await prepareKeysWithMaster()
 
-    const originalPublic = await mockUserKeyService.getRsaPublicKey()
-    const originalWrapped = await mockUserKeyService.getWrappedMasterKey()
+    const originalPublic = await mockUserKeyService.fetchRsaPublicKey()
+    const originalWrapped = await mockUserKeyService.fetchWrappedMasterKey()
     const oldPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
     const originalUnwrapped = await masterKeyService.unwrapKey(originalWrapped!, oldPrivate)
 
@@ -198,7 +198,7 @@ describe('rotateRsaKeys', () => {
 
     expect(await rsaKeyService.hasKeys()).toBe(true)
 
-    const newPublic = await mockUserKeyService.getRsaPublicKey()
+    const newPublic = await mockUserKeyService.fetchRsaPublicKey()
     expect(newPublic).not.toBe(originalPublic)
 
     const newPrivate = await rsaKeyService.loadPrivateKey(PASSWORD)
@@ -217,9 +217,9 @@ describe('rotateRsaKeys', () => {
 
   it('rolls back storage when re-wrapping fails', async () => {
     await prepareKeysWithMaster()
-    const originalPub = await mockUserKeyService.getRsaPublicKey()
-    const originalPriv = await mockUserKeyService.getRsaPrivateKeyEncrypted()
-    const originalWrapped = await mockUserKeyService.getWrappedMasterKey()
+    const originalPub = await mockUserKeyService.fetchRsaPublicKey()
+    const originalPriv = await mockUserKeyService.fetchRsaPrivateKeyEncrypted()
+    const originalWrapped = await mockUserKeyService.fetchWrappedMasterKey()
 
     const spy = vi.spyOn(masterKeyService, 'wrapKey').mockImplementation(() => {
       throw new Error('simulated failure')
@@ -227,9 +227,9 @@ describe('rotateRsaKeys', () => {
 
     await expect(rsaKeyService.rotateKeys(PASSWORD)).rejects.toThrow(/RSA key rotation failed/)
 
-    expect(await mockUserKeyService.getRsaPublicKey()).toBe(originalPub)
-    expect(await mockUserKeyService.getRsaPrivateKeyEncrypted()).toBe(originalPriv)
-    expect(await mockUserKeyService.getWrappedMasterKey()).toBe(originalWrapped)
+    expect(await mockUserKeyService.fetchRsaPublicKey()).toBe(originalPub)
+    expect(await mockUserKeyService.fetchRsaPrivateKeyEncrypted()).toBe(originalPriv)
+    expect(await mockUserKeyService.fetchWrappedMasterKey()).toBe(originalWrapped)
 
     spy.mockRestore()
   })

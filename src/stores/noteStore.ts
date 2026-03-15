@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { storeToRefs } from 'pinia'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import { useAuthStore } from './authStore'
-import { getUserData, setUserData, deleteUserData, hasUserData } from '../utils/supabase/userDataService'
+import { fetchUserData, saveUserData, deleteUserData, hasUserData } from '../utils/supabase/userDataService'
 
 const DATA_KEY = 'note'
 
@@ -30,7 +30,7 @@ export const useNoteStore = defineStore('note', () => {
     error.value = null
     try {
       const encrypted = await cryptoService.encrypt(plaintext, masterKey.value, fieldName, userId.value)
-      await setUserData(DATA_KEY, encrypted)
+      await saveUserData(DATA_KEY, encrypted)
     } catch {
       error.value = 'Failed to save note.'
     } finally {
@@ -47,7 +47,7 @@ export const useNoteStore = defineStore('note', () => {
     loading.value = true
     error.value = null
     try {
-      const stored = await getUserData(DATA_KEY)
+      const stored = await fetchUserData(DATA_KEY)
       if (!stored) return null
       if (!cryptoService.isEncrypted(stored)) {
         error.value = 'Stored data is not in a valid encrypted format.'
@@ -66,7 +66,7 @@ export const useNoteStore = defineStore('note', () => {
     try {
       const exists = await hasUserData(DATA_KEY)
       if (!exists) return false
-      const stored = await getUserData(DATA_KEY)
+      const stored = await fetchUserData(DATA_KEY)
       return stored !== null && cryptoService.isEncrypted(stored)
     } catch {
       return false

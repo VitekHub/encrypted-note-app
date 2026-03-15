@@ -82,7 +82,7 @@ describe('storeKey', () => {
     const { publicKey } = await generateRsaKeyPair()
     const masterKey = await masterKeyService.generateKey()
     await storeMasterKey(masterKey, publicKey)
-    expect(await mockUserKeyService.getWrappedMasterKey()).not.toBeNull()
+    expect(await mockUserKeyService.fetchWrappedMasterKey()).not.toBeNull()
   })
 
   it('overwrites an existing wrapped key', async () => {
@@ -90,11 +90,11 @@ describe('storeKey', () => {
 
     const first = await masterKeyService.generateKey()
     await storeMasterKey(first, publicKey)
-    const storedFirst = await mockUserKeyService.getWrappedMasterKey()
+    const storedFirst = await mockUserKeyService.fetchWrappedMasterKey()
 
     const second = await masterKeyService.generateKey()
     await storeMasterKey(second, publicKey)
-    const storedSecond = await mockUserKeyService.getWrappedMasterKey()
+    const storedSecond = await mockUserKeyService.fetchWrappedMasterKey()
 
     expect(storedFirst).not.toBe(storedSecond)
   })

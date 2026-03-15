@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { argon2CalibrationService, type Argon2Params, type CalibrationResult } from '../utils/crypto/argon2Calibration'
-import { getUserData, setUserData } from '../utils/supabase/userDataService'
+import { fetchUserData, saveUserData } from '../utils/supabase/userDataService'
 
 export interface AppSettings {
   idleTimeoutMinutes: number
@@ -44,7 +44,7 @@ export const useSettingsStore = defineStore('settings', () => {
     async (newVal) => {
       if (!_sessionActive.value) return
       try {
-        await setUserData(DATA_KEY, JSON.stringify(newVal))
+        await saveUserData(DATA_KEY, JSON.stringify(newVal))
       } catch (e) {
         console.error('Failed to auto-save settings', e) // eslint-disable-line no-console
       }
@@ -54,7 +54,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function loadSettings(): Promise<Argon2Params | null> {
     try {
-      const stored = await getUserData(DATA_KEY)
+      const stored = await fetchUserData(DATA_KEY)
       if (stored) {
         const parsed = JSON.parse(stored) as AppSettings
         settings.value = { ...defaultSettings, ...parsed }
@@ -70,7 +70,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function persistSettings(): Promise<void> {
     try {
-      await setUserData(DATA_KEY, JSON.stringify(settings.value))
+      await saveUserData(DATA_KEY, JSON.stringify(settings.value))
     } catch (e) {
       console.error('Failed to save settings to database', e) // eslint-disable-line no-console
     }
