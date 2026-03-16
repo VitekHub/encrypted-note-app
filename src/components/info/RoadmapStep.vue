@@ -33,13 +33,32 @@
       <div v-if="!step.flow.length && !step.securityGain.length && !step.dangers.length" class="content-section">
         <p class="placeholder-text">Coming soon...</p>
       </div>
+
+      <div v-if="step.detailsDoc" class="details-row">
+        <button class="details-btn" @click="isModalOpen = true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.4" />
+            <path d="M7 6.5V10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+            <circle cx="7" cy="4.5" r="0.7" fill="currentColor" />
+          </svg>
+          Details
+        </button>
+      </div>
     </div>
   </div>
+
+  <MarkdownModal
+    v-if="isModalOpen && step.detailsDoc"
+    :title="step.title"
+    :content="step.detailsDoc"
+    @close="isModalOpen = false"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { RoadmapStep as RoadmapStepType } from '../../data/roadmapSteps'
+import MarkdownModal from '../ui/MarkdownModal.vue'
 
 interface Props {
   step: RoadmapStepType
@@ -52,6 +71,7 @@ withDefaults(defineProps<Props>(), {
 })
 
 const isExpanded = ref(false)
+const isModalOpen = ref(false)
 
 const sections = (step: RoadmapStepType) => [
   { key: 'flow', label: 'Resulting Flow', items: step.flow || [] },
@@ -155,5 +175,28 @@ const sections = (step: RoadmapStepType) => [
 .placeholder-text {
   @apply m-0 text-sm leading-[1.6] opacity-50 italic;
   color: var(--color-text);
+}
+
+.details-row {
+  @apply mt-4 pt-3 flex justify-end;
+  border-top: 1px solid var(--color-border);
+}
+
+.details-btn {
+  @apply inline-flex items-center gap-1.5 bg-transparent border cursor-pointer font-medium rounded-md;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  opacity: 0.8;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s;
+
+  &:hover {
+    opacity: 1;
+    background-color: var(--color-surface);
+  }
 }
 </style>
