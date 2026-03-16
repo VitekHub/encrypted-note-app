@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { getUserId } from '../auth/usernameAuthService'
 
 export interface UserKeysRow {
   rsa_public_key_spki: string | null
@@ -8,31 +9,17 @@ export interface UserKeysRow {
 }
 
 /**
- * Resolves the authenticated user's Supabase ID from the active session.
- *
- * @returns The current user's UUID
- * @throws If there is no active Supabase session
- */
-async function getUserId(): Promise<string> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) throw new Error('No active Supabase session')
-  return session.user.id
-}
-
-/**
  * Upserts one or more fields in the `user_keys` row for the given user.
  *
  * Uses an upsert on `user_id` so that subsequent calls for the same user
  * replace the previous values rather than inserting a duplicate row.
  *
- * @param userId - The authenticated user's UUID
  * @param fields - Partial set of `UserKeysRow` fields to write
  * @returns Promise that resolves when the write completes
  * @throws If the database upsert fails
  */
-async function upsertUserKeys(userId: string, fields: Partial<UserKeysRow>): Promise<void> {
+async function upsertUserKeys(fields: Partial<UserKeysRow>): Promise<void> {
+  const userId = await getUserId()
   const { error } = await supabase
     .from('user_keys')
     .upsert({ user_id: userId, ...fields, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
@@ -66,8 +53,7 @@ export async function fetchRsaPublicKey(): Promise<string | null> {
  * @throws If the database upsert fails
  */
 export async function saveRsaPublicKey(value: string): Promise<void> {
-  const userId = await getUserId()
-  await upsertUserKeys(userId, { rsa_public_key_spki: value })
+  await upsertUserKeys({ rsa_public_key_spki: value })
 }
 
 /**
@@ -97,8 +83,7 @@ export async function fetchRsaPrivateKeyEncrypted(): Promise<string | null> {
  * @throws If the database upsert fails
  */
 export async function saveRsaPrivateKeyEncrypted(value: string): Promise<void> {
-  const userId = await getUserId()
-  await upsertUserKeys(userId, { rsa_private_key_encrypted: value })
+  await upsertUserKeys({ rsa_private_key_encrypted: value })
 }
 
 /**
@@ -122,8 +107,7 @@ export async function fetchRsaKeyVersion(): Promise<string | null> {
  * @throws If the database upsert fails
  */
 export async function saveRsaKeyVersion(value: string): Promise<void> {
-  const userId = await getUserId()
-  await upsertUserKeys(userId, { rsa_key_version: value })
+  await upsertUserKeys({ rsa_key_version: value })
 }
 
 /**
@@ -152,8 +136,7 @@ export async function fetchWrappedMasterKey(): Promise<string | null> {
  * @throws If the database upsert fails
  */
 export async function saveWrappedMasterKey(value: string): Promise<void> {
-  const userId = await getUserId()
-  await upsertUserKeys(userId, { wrapped_master_key: value })
+  await upsertUserKeys({ wrapped_master_key: value })
 }
 
 /**

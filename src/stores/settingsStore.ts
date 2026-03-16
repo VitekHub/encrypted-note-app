@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { argon2CalibrationService, type Argon2Params, type CalibrationResult } from '../utils/crypto/argon2Calibration'
 import { fetchUserData, saveUserData } from '../utils/supabase/userDataService'
@@ -37,34 +37,18 @@ const defaultSettings: AppSettings = {
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<AppSettings>({ ...defaultSettings })
   const benchmarkResults = ref<CalibrationResult[]>([])
-  const _sessionActive = ref(false)
 
-  watch(
-    settings,
-    async (newVal) => {
-      if (!_sessionActive.value) return
-      try {
-        await saveUserData(DATA_KEY, JSON.stringify(newVal))
-      } catch (e) {
-        console.error('Failed to auto-save settings', e) // eslint-disable-line no-console
-      }
-    },
-    { deep: true }
-  )
-
-  async function loadSettings(): Promise<Argon2Params | null> {
+  async function loadSettings(): Promise<AppSettings | null> {
     try {
       const stored = await fetchUserData(DATA_KEY)
       if (stored) {
         const parsed = JSON.parse(stored) as AppSettings
         settings.value = { ...defaultSettings, ...parsed }
-        _sessionActive.value = true
-        return parsed.argon2Params ?? null
+        return settings.value
       }
     } catch (e) {
       console.error('Failed to load settings from database', e) // eslint-disable-line no-console
     }
-    _sessionActive.value = true
     return null
   }
 
@@ -76,8 +60,13 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  async function updateSettings(patch: Partial<AppSettings>): Promise<void> {
-    settings.value = { ...settings.value, ...patch }
+  async function setIdleTimeoutMinutes(minutes: number): Promise<void> {
+    settings.value.idleTimeoutMinutes = minutes
+    await persistSettings()
+  }
+
+  async function setArgon2Params(params: Argon2Params): Promise<void> {
+    settings.value.argon2Params = params
     await persistSettings()
   }
 
@@ -114,7 +103,6 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function resetSettings(): void {
-    _sessionActive.value = false
     settings.value = { ...defaultSettings }
   }
 
@@ -123,7 +111,8 @@ export const useSettingsStore = defineStore('settings', () => {
     benchmarkResults,
     loadSettings,
     persistSettings,
-    updateSettings,
+    setIdleTimeoutMinutes,
+    setArgon2Params,
     runFullBenchmarks,
     resetSettings,
   }

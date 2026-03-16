@@ -22,18 +22,18 @@
         autocomplete="username"
         @keydown.enter="focusPassword"
       />
-      <p v-if="usernameErrors.length" class="hint-msg">
-        <span class="error-text">{{ usernameErrors.join(', ') }}</span>
-      </p>
-      <p v-else-if="mode === 'signup' && usernameInput && usernameChecking" class="hint-msg">
-        Checking availability...
-      </p>
-      <p v-else-if="mode === 'signup' && usernameInput && usernameAvailable === false" class="hint-msg error-text">
-        Username already taken.
-      </p>
-      <p v-else-if="mode === 'signup' && usernameInput && usernameAvailable === true" class="hint-msg success-text">
-        Username is available.
-      </p>
+      <div class="hint-msg">
+        <p v-if="usernameErrors.length">
+          <span class="error-text">{{ usernameErrors.join(', ') }}</span>
+        </p>
+        <p v-else-if="mode === 'signup' && usernameInput && usernameChecking">Checking availability...</p>
+        <p v-else-if="mode === 'signup' && usernameInput && usernameAvailable === false" class="error-text">
+          Username already taken.
+        </p>
+        <p v-else-if="mode === 'signup' && usernameInput && usernameAvailable === true" class="success-text">
+          Username is available.
+        </p>
+      </div>
     </div>
 
     <div class="field">

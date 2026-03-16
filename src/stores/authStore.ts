@@ -58,7 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
 
       const settingsStore = useSettingsStore()
       await settingsStore.loadSettings()
-      await settingsStore.updateSettings({ argon2Params: params })
+      await settingsStore.setArgon2Params(params)
     } catch (e) {
       userId.value = null
       username.value = null
@@ -85,10 +85,9 @@ export const useAuthStore = defineStore('auth', () => {
       await loginLockoutService.reset()
 
       const settingsStore = useSettingsStore()
-      const storedParams = await settingsStore.loadSettings()
-      if (!storedParams) {
-        await settingsStore.updateSettings({ argon2Params: params })
-      }
+      await settingsStore.loadSettings()
+      await settingsStore.setArgon2Params(params)
+      await useNoteStore().loadNote()
     } catch (e) {
       if (e instanceof LockoutError) {
         error.value = e.message
@@ -97,8 +96,6 @@ export const useAuthStore = defineStore('auth', () => {
       if ((e as { code?: string })?.code?.includes('invalid_credentials')) {
         await loginLockoutService.recordFailedAttempt()
       }
-      userId.value = null
-      username.value = null
       masterKey.value = null
       error.value = e instanceof Error && e.message ? e.message : 'Failed to unlock'
       throw e
@@ -107,49 +104,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function unlockExistingSession(password: string): Promise<void> {
-    isLoading.value = true
-    error.value = null
-    try {
-      const { masterKey: key, params } = await cryptoService.unlock(password)
-      masterKey.value = key
-
-      const settingsStore = useSettingsStore()
-      const storedParams = await settingsStore.loadSettings()
-      if (!storedParams) {
-        await settingsStore.updateSettings({ argon2Params: params })
-      }
-    } catch (e) {
-      error.value = e instanceof Error && e.message ? e.message : 'Failed to unlock'
-      throw e
-    } finally {
-      isLoading.value = false
-    }
-  }
-
   async function lock(): Promise<void> {
-    cryptoService.lock()
+    cryptoService.clear()
     masterKey.value = null
     error.value = null
-    const settingsStore = useSettingsStore()
-    settingsStore.resetSettings()
-    const noteStore = useNoteStore()
-    noteStore.clearNoteText()
+    useSettingsStore().resetSettings()
+    useNoteStore().clearNoteText()
   }
 
   async function logout(): Promise<void> {
-    cryptoService.lock()
-    masterKey.value = null
-    error.value = null
     userId.value = null
     username.value = null
     keysExist.value = false
-
-    const settingsStore = useSettingsStore()
-    settingsStore.resetSettings()
-    const noteStore = useNoteStore()
-    noteStore.clearNoteText()
-
+    await lock()
     await signOut()
   }
 
@@ -182,10 +149,8 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = null
     username.value = null
 
-    const settingsStore = useSettingsStore()
-    settingsStore.resetSettings()
-    const noteStore = useNoteStore()
-    noteStore.clearNoteText()
+    useSettingsStore().resetSettings()
+    useNoteStore().clearNoteText()
   }
 
   return {
@@ -202,7 +167,6 @@ export const useAuthStore = defineStore('auth', () => {
     checkKeysExist,
     setup,
     unlock,
-    unlockExistingSession,
     lock,
     logout,
     changePassword,

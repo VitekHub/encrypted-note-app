@@ -107,7 +107,7 @@ export const cryptoService: CryptoService = {
   },
 
   /** @inheritdoc */
-  lock() {
+  clear() {
     fieldKeyService.clear()
   },
 }

@@ -19,7 +19,7 @@
       <p v-if="error" class="error-text">{{ error }}</p>
 
       <div class="flex items-center justify-between gap-2.5">
-        <BaseButton :loading="loading" :disabled="!passphraseInput || loading" @click="handleUnlock">
+        <BaseButton :loading="isLoading" :disabled="!passphraseInput || isLoading" @click="handleUnlock">
           Decrypt & Open
         </BaseButton>
         <button class="btn-switch" @click="handleSwitchAccount">Switch account</button>
@@ -36,27 +36,20 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/authStore'
-import { useNoteStore } from '../stores/noteStore'
 import AppInfo from '../components/info/AppInfo.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const noteStore = useNoteStore()
-const { isLoading: loading, error, username } = storeToRefs(authStore)
-const { noteText } = storeToRefs(noteStore)
+const { isLoading, error, username } = storeToRefs(authStore)
 
 const passphraseInput = ref('')
 
 async function handleUnlock() {
   if (!passphraseInput.value) return
   try {
-    await authStore.unlockExistingSession(passphraseInput.value)
-    const result = await noteStore.loadNote()
-    if (result !== null) {
-      noteText.value = result
-    }
+    await authStore.unlock(username.value!, passphraseInput.value)
     router.push('/')
   } catch {
     // error is set by the store
@@ -87,9 +80,9 @@ async function handleSwitchAccount() {
   padding: 4px 0;
   text-decoration: underline;
   text-underline-offset: 3px;
-}
 
-.btn-switch:hover {
-  color: var(--color-text);
+  &:hover {
+    color: var(--color-text);
+  }
 }
 </style>

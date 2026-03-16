@@ -1,6 +1,14 @@
+import { argon2id } from 'hash-wasm'
 import { supabase } from '../../lib/supabase'
 
 const USERNAME_DOMAIN = 'ciphernote.local'
+
+const AUTH_TOKEN_ARGON2_PARAMS = {
+  iterations: 1,
+  memorySize: 65536,
+  parallelism: 1,
+  hashLength: 32,
+} as const
 
 /**
  * Converts a plain username into a synthetic e-mail address accepted by
@@ -14,22 +22,35 @@ function usernameToEmail(username: string): string {
 }
 
 /**
- * Derives a deterministic auth token from the username and password.
+ * Derives a deterministic auth token from the username and password using Argon2id.
  *
- * The token is a hex-encoded SHA-256 digest of `"<username>:<password>"` and
- * is used as the Supabase Auth password so that the real user password never
- * leaves the client.
+ * The token is a hex-encoded 32-byte Argon2id hash and is used as the Supabase
+ * Auth password so that the real user password never leaves the client.
  *
- * @param username - Lower-cased username
+ * The salt is derived deterministically from the normalized username
+ * (`<username>@ciphernote.local`), making the output stable across sessions
+ * without requiring salt storage.
+ *
+ * Params: 1 iteration, 64 MB memory, parallelism 1 (low-cost; the heavy KDF
+ * work happens separately when deriving the master encryption key).
+ *
+ * @param username - Raw username (will be lower-cased before hashing)
  * @param password - User's plaintext password
- * @returns Hex string to use as the Supabase Auth password
+ * @returns 64-char lowercase hex string to use as the Supabase Auth password
  */
 export async function deriveAuthToken(username: string, password: string): Promise<string> {
+  const normalized = username.toLowerCase()
+  const saltStr = `${normalized}@${USERNAME_DOMAIN}`
   const encoder = new TextEncoder()
-  const data = encoder.encode(`${username.toLowerCase()}:${password}`)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+  const saltBytes = encoder.encode(saltStr)
+  const salt =
+    saltBytes.length >= 8 ? saltBytes : new Uint8Array([...saltBytes, ...new Uint8Array(8 - saltBytes.length)])
+  return argon2id({
+    password,
+    salt,
+    ...AUTH_TOKEN_ARGON2_PARAMS,
+    outputType: 'hex',
+  })
 }
 
 /**
@@ -148,6 +169,20 @@ export async function deleteAccount(): Promise<void> {
 }
 
 /**
+ * Resolves the authenticated user's Supabase ID from the active session.
+ *
+ * @returns The current user's UUID
+ * @throws If there is no active Supabase session
+ */
+export async function getUserId(): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) throw new Error('No active Supabase session')
+  return session.user.id
+}
+
+/**
  * Retrieves the current Supabase session and resolves it to the application's
  * user identity.
  *
@@ -155,16 +190,14 @@ export async function deleteAccount(): Promise<void> {
  *   is no active session or the profile row cannot be found
  */
 export async function getCurrentSession(): Promise<{ userId: string; username: string } | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session) return null
-
-  const { data: profile } = await supabase.from('profiles').select('username').eq('id', session.user.id).maybeSingle()
-
-  if (!profile) return null
-
-  return { userId: session.user.id, username: profile.username }
+  try {
+    const userId = await getUserId()
+    const { data: profile } = await supabase.from('profiles').select('username').eq('id', userId).maybeSingle()
+    if (!profile) return null
+    return { userId, username: profile.username }
+  } catch {
+    return null
+  }
 }
 
 /**

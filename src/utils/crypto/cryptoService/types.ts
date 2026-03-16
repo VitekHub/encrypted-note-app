@@ -137,5 +137,5 @@ export interface CryptoService {
    * Clears sensitive data from memory, such as field keys and other temporary variables.
    * This is typically called upon session lock or when the application goes idle.
    */
-  lock(): void
+  clear(): void
 }

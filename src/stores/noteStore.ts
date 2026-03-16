@@ -14,22 +14,22 @@ export const useNoteStore = defineStore('note', () => {
 
   const fieldName = 'note'
 
-  function getAuthRefs() {
+  function getAuthValues() {
     const authStore = useAuthStore()
     const { masterKey, userId } = storeToRefs(authStore)
-    return { masterKey, userId }
+    return { masterKey: masterKey.value, userId: userId.value }
   }
 
   async function saveNote(plaintext: string): Promise<void> {
-    const { masterKey, userId } = getAuthRefs()
-    if (!masterKey.value || !userId.value) {
+    const { masterKey, userId } = getAuthValues()
+    if (!masterKey || !userId) {
       error.value = 'No active session.'
       return
     }
     loading.value = true
     error.value = null
     try {
-      const encrypted = await cryptoService.encrypt(plaintext, masterKey.value, fieldName, userId.value)
+      const encrypted = await cryptoService.encrypt(plaintext, masterKey, fieldName, userId)
       await saveUserData(DATA_KEY, encrypted)
     } catch {
       error.value = 'Failed to save note.'
@@ -39,8 +39,8 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   async function loadNote(): Promise<string | null> {
-    const { masterKey, userId } = getAuthRefs()
-    if (!masterKey.value || !userId.value) {
+    const { masterKey, userId } = getAuthValues()
+    if (!masterKey || !userId) {
       error.value = 'No active session.'
       return null
     }
@@ -53,7 +53,8 @@ export const useNoteStore = defineStore('note', () => {
         error.value = 'Stored data is not in a valid encrypted format.'
         return null
       }
-      return await cryptoService.decrypt(stored, masterKey.value, fieldName, userId.value)
+      noteText.value = await cryptoService.decrypt(stored, masterKey, fieldName, userId)
+      return noteText.value
     } catch {
       error.value = 'Wrong password or corrupted data.'
       return null
@@ -77,7 +78,7 @@ export const useNoteStore = defineStore('note', () => {
     try {
       await deleteUserData(DATA_KEY)
     } catch {
-      // best-effort
+      error.value = 'Failed to clear note.'
     }
     error.value = null
   }
