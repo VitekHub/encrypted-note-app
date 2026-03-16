@@ -21,7 +21,7 @@ vi.mock('../utils/auth/usernameAuthService', () => ({
 const mockCryptoSetup = vi.fn()
 const mockCryptoUnlock = vi.fn()
 const mockCryptoIsSetUp = vi.fn()
-const mockCryptoLock = vi.fn()
+const mockCryptoClear = vi.fn()
 const mockCryptoUpdatePassword = vi.fn()
 const mockCryptoTeardown = vi.fn()
 
@@ -30,7 +30,7 @@ vi.mock('../utils/crypto/cryptoService', () => ({
     setup: (...args: unknown[]) => mockCryptoSetup(...args),
     unlock: (...args: unknown[]) => mockCryptoUnlock(...args),
     isSetUp: (...args: unknown[]) => mockCryptoIsSetUp(...args),
-    lock: (...args: unknown[]) => mockCryptoLock(...args),
+    clear: (...args: unknown[]) => mockCryptoClear(...args),
     updatePassword: (...args: unknown[]) => mockCryptoUpdatePassword(...args),
     teardown: (...args: unknown[]) => mockCryptoTeardown(...args),
   },
@@ -65,22 +65,26 @@ vi.mock('../lib/supabase', () => ({
 }))
 
 const mockSettingsLoadSettings = vi.fn()
-const mockSettingsUpdateSettings = vi.fn()
+const mockSettingsSetArgon2Params = vi.fn()
+const mockSettingsSetIdleTimeoutMinutes = vi.fn()
 const mockSettingsReset = vi.fn()
 
 vi.mock('./settingsStore', () => ({
   useSettingsStore: () => ({
     loadSettings: mockSettingsLoadSettings,
-    updateSettings: mockSettingsUpdateSettings,
+    setArgon2Params: mockSettingsSetArgon2Params,
+    setIdleTimeoutMinutes: mockSettingsSetIdleTimeoutMinutes,
     resetSettings: mockSettingsReset,
   }),
 }))
 
 const mockNoteClearNoteText = vi.fn()
+const mockNoteLoadNote = vi.fn()
 
 vi.mock('./noteStore', () => ({
   useNoteStore: () => ({
     clearNoteText: mockNoteClearNoteText,
+    loadNote: mockNoteLoadNote,
   }),
 }))
 
@@ -104,7 +108,7 @@ beforeEach(() => {
   mockCryptoSetup.mockResolvedValue({ masterKey: FAKE_MASTER_KEY, params: FAKE_PARAMS })
   mockCryptoUnlock.mockResolvedValue({ masterKey: FAKE_DERIVABLE_KEY, params: FAKE_PARAMS })
   mockCryptoIsSetUp.mockResolvedValue(true)
-  mockCryptoLock.mockReturnValue(undefined)
+  mockCryptoClear.mockReturnValue(undefined)
   mockCryptoUpdatePassword.mockResolvedValue(undefined)
   mockCryptoTeardown.mockResolvedValue(undefined)
 
@@ -115,10 +119,12 @@ beforeEach(() => {
   mockUpdateUser.mockResolvedValue({ error: null })
 
   mockSettingsLoadSettings.mockResolvedValue(null)
-  mockSettingsUpdateSettings.mockResolvedValue(undefined)
+  mockSettingsSetArgon2Params.mockResolvedValue(undefined)
+  mockSettingsSetIdleTimeoutMinutes.mockResolvedValue(undefined)
   mockSettingsReset.mockReturnValue(undefined)
 
   mockNoteClearNoteText.mockReturnValue(undefined)
+  mockNoteLoadNote.mockResolvedValue(undefined)
 })
 
 describe('authStore.initSession', () => {
@@ -176,7 +182,7 @@ describe('authStore.setup', () => {
     await store.setup('alice', 'password123')
 
     expect(mockSettingsLoadSettings).toHaveBeenCalled()
-    expect(mockSettingsUpdateSettings).toHaveBeenCalledWith({ argon2Params: FAKE_PARAMS })
+    expect(mockSettingsSetArgon2Params).toHaveBeenCalledWith(FAKE_PARAMS)
   })
 
   it('clears userId and username and re-throws on error', async () => {
@@ -239,37 +245,13 @@ describe('authStore.unlock', () => {
     mockSignIn.mockRejectedValue(new Error('fail'))
     const store = useAuthStore()
     store.userId = 'uid-1' as string | null
+    store.username = 'alice'
 
     await expect(store.unlock('alice', 'pass')).rejects.toThrow()
 
-    expect(store.userId).toBeNull()
-    expect(store.username).toBeNull()
+    expect(store.userId).toBe('uid-1')
+    expect(store.username).toBe('alice')
     expect(store.masterKey).toBeNull()
-  })
-})
-
-describe('authStore.unlockExistingSession', () => {
-  it('unlocks without calling signIn', async () => {
-    const store = useAuthStore()
-    await store.unlockExistingSession('pass')
-
-    expect(mockSignIn).not.toHaveBeenCalled()
-    expect(mockCryptoUnlock).toHaveBeenCalledWith('pass')
-    expect(store.masterKey).toStrictEqual(FAKE_DERIVABLE_KEY)
-  })
-
-  it('loads settings on success', async () => {
-    const store = useAuthStore()
-    await store.unlockExistingSession('pass')
-    expect(mockSettingsLoadSettings).toHaveBeenCalled()
-  })
-
-  it('sets error and re-throws when unlock fails', async () => {
-    mockCryptoUnlock.mockRejectedValue(new Error('wrong password'))
-    const store = useAuthStore()
-
-    await expect(store.unlockExistingSession('wrong')).rejects.toThrow('wrong password')
-    expect(store.error).toBeTruthy()
   })
 })
 
@@ -279,7 +261,7 @@ describe('authStore.lock', () => {
     store.masterKey = FAKE_MASTER_KEY as CryptoKey | null
     await store.lock()
 
-    expect(mockCryptoLock).toHaveBeenCalled()
+    expect(mockCryptoClear).toHaveBeenCalled()
     expect(store.masterKey).toBeNull()
   })
 
@@ -293,13 +275,13 @@ describe('authStore.lock', () => {
 })
 
 describe('authStore.logout', () => {
-  it('calls cryptoService.lock, clears all state, and calls signOut', async () => {
+  it('calls cryptoService.clear, clears all state, and calls signOut', async () => {
     const store = useAuthStore()
     store.userId = 'uid-1' as string | null
     store.username = 'alice' as string | null
     await store.logout()
 
-    expect(mockCryptoLock).toHaveBeenCalled()
+    expect(mockCryptoClear).toHaveBeenCalled()
     expect(mockSignOut).toHaveBeenCalled()
     expect(store.userId).toBeNull()
     expect(store.username).toBeNull()

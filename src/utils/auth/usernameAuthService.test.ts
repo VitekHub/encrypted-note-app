@@ -68,7 +68,7 @@ describe('deriveAuthToken', () => {
     expect(lower).toBe(upper)
   })
 
-  it('returns a 64-char hex string (SHA-256)', async () => {
+  it('returns a 64-char hex string (Argon2id, 32-byte hash)', async () => {
     const token = await deriveAuthToken('alice', 'pass')
     expect(token).toMatch(/^[0-9a-f]{64}$/)
   })

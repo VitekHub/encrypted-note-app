@@ -271,9 +271,9 @@ describe('cryptoService.teardown', () => {
   })
 })
 
-describe('cryptoService.lock', () => {
+describe('cryptoService.clear', () => {
   it('calls fieldKeyService.clear', () => {
-    cryptoService.lock()
+    cryptoService.clear()
     expect(mockFieldKeyService.clear).toHaveBeenCalled()
   })
 })
