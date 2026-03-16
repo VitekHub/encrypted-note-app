@@ -10,7 +10,7 @@
       <RouterLink v-if="isAuthenticated" to="/settings" class="nav-link">Settings</RouterLink>
       <RouterLink v-if="isAuthenticated" to="/about" class="nav-link">About</RouterLink>
 
-      <div v-if="isAuthenticated" class="user-menu-wrapper" ref="userMenuRef">
+      <div v-if="isAuthenticated" ref="userMenuRef" class="user-menu-wrapper">
         <button class="user-menu-trigger" :aria-expanded="userMenuOpen" @click="userMenuOpen = !userMenuOpen">
           <span class="user-menu-username">{{ username }}</span>
           <svg
