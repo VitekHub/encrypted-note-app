@@ -8,6 +8,15 @@
     <meta property="og:image" content="https://bolt.new/static/og_default.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <script>
+      ;(function () {
+        var redirect = sessionStorage.redirect
+        delete sessionStorage.redirect
+        if (redirect && redirect != location.href) {
+          history.replaceState(null, null, redirect)
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
