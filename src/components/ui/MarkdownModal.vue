@@ -4,13 +4,14 @@
       <div class="md-card" role="dialog" aria-modal="true">
         <div class="md-header">
           <h2 class="md-title">{{ title }}</h2>
-          <button class="md-close" @click="close" aria-label="Close">
+          <button class="md-close" aria-label="Close" @click="close">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" />
             </svg>
           </button>
         </div>
         <div class="md-body">
+          <!-- eslint-disable-next-line vue/no-v-html -->
           <div class="md-content" v-html="renderedContent" />
         </div>
       </div>
@@ -21,6 +22,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const props = defineProps<{
   title: string
@@ -31,7 +33,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const renderedContent = computed(() => marked(props.content) as string)
+const renderedContent = computed(() => DOMPurify.sanitize(marked(props.content) as string))
 
 function close() {
   emit('close')
