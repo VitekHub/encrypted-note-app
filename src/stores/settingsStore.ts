@@ -1,6 +1,7 @@
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { argon2CalibrationService, type Argon2Params, type CalibrationResult } from '../utils/crypto/argon2Calibration'
+import { fetchUserData, saveUserData } from '../utils/supabase/userDataService'
 
 export interface AppSettings {
   idleTimeoutMinutes: number
@@ -27,36 +28,47 @@ const FULL_BENCHMARK_SETS: Argon2Params[] = [
   { memorySize: 256 * 1024, iterations: 3, parallelism: 8, hashLength: 32 },
 ]
 
-const SETTINGS_KEY = 'app-settings'
+const DATA_KEY = 'settings'
 
 const defaultSettings: AppSettings = {
   idleTimeoutMinutes: 5,
 }
 
 export const useSettingsStore = defineStore('settings', () => {
-  function loadInitialSettings(): AppSettings {
-    try {
-      const stored = localStorage.getItem(SETTINGS_KEY)
-      if (stored) {
-        return { ...defaultSettings, ...JSON.parse(stored) }
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to parse app settings from localStorage', e)
-    }
-    return { ...defaultSettings }
-  }
-
-  const settings = ref<AppSettings>(loadInitialSettings())
+  const settings = ref<AppSettings>({ ...defaultSettings })
   const benchmarkResults = ref<CalibrationResult[]>([])
 
-  watch(
-    settings,
-    (newVal) => {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(newVal))
-    },
-    { deep: true }
-  )
+  async function loadSettings(): Promise<AppSettings | null> {
+    try {
+      const stored = await fetchUserData(DATA_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored) as AppSettings
+        settings.value = { ...defaultSettings, ...parsed }
+        return settings.value
+      }
+    } catch (e) {
+      console.error('Failed to load settings from database', e) // eslint-disable-line no-console
+    }
+    return null
+  }
+
+  async function persistSettings(): Promise<void> {
+    try {
+      await saveUserData(DATA_KEY, JSON.stringify(settings.value))
+    } catch (e) {
+      console.error('Failed to save settings to database', e) // eslint-disable-line no-console
+    }
+  }
+
+  async function setIdleTimeoutMinutes(minutes: number): Promise<void> {
+    settings.value.idleTimeoutMinutes = minutes
+    await persistSettings()
+  }
+
+  async function setArgon2Params(params: Argon2Params): Promise<void> {
+    settings.value.argon2Params = params
+    await persistSettings()
+  }
 
   async function runFullBenchmarks(mode: BenchmarkMode): Promise<void> {
     let sets: Argon2Params[] = []
@@ -97,6 +109,10 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     settings,
     benchmarkResults,
+    loadSettings,
+    persistSettings,
+    setIdleTimeoutMinutes,
+    setArgon2Params,
     runFullBenchmarks,
     resetSettings,
   }

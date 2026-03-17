@@ -5,6 +5,7 @@
     <ChangePasswordSection />
     <KeyRotationSection />
     <Argon2Section />
+    <DeleteAccountSection />
   </div>
 </template>
 
@@ -13,6 +14,7 @@ import AutoLockSection from './AutoLockSection.vue'
 import ChangePasswordSection from './ChangePasswordSection.vue'
 import KeyRotationSection from './KeyRotationSection.vue'
 import Argon2Section from './Argon2Section.vue'
+import DeleteAccountSection from './DeleteAccountSection.vue'
 </script>
 
 <style scoped>

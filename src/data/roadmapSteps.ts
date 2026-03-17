@@ -190,19 +190,37 @@ export const roadmapSteps: RoadmapStep[] = [
     ],
   },
   {
-    title: 'Fix Broken AAD Binding',
-    goal: 'Make AAD actually bind encrypted blobs to the correct user and field to prevent substitution / mix-up attacks.',
+    title: 'Add Supabase and Fix Broken AAD Binding',
+    goal: 'Add Supabase and make AAD actually bind encrypted blobs to the correct user and field to prevent substitution / mix-up attacks.',
     flow: [
+      'Add Supabase and replace local storage with Supabase for storing encrypted data',
       'Replace hardcoded "TODO:note" with proper per-user + per-field AAD construction (e.g. userId + fieldId + version tag)',
       'Update all encryption calls in useEncryptedNote / fieldKeyService / passwordDerivedService to use real AAD',
-      'Add migration step or version check so old blobs with broken AAD can still be read (graceful fallback during transition)',
     ],
     securityGain: [
+      'Provides authentication for multiple users and secure storage for encrypted data',
       'Prevents silent blob-swapping attacks between users (critical for any future multi-user or cloud-sync feature)',
       'Restores intended authenticity guarantees of AES-GCM and makes all previous rotation work actually meaningful',
     ],
     dangers: [
-      // This is the last step → no "next step" danger
+      'Without zero-knowledge authentication, the password (or a derivative) is still transmitted to the server on every login, meaning a server breach or a compromised Supabase instance can expose the credentials that protect the encrypted RSA private key.',
+      'An attacker who obtains the server database and the transmitted password hash can launch an offline dictionary attack directly against Argon2id, bypassing all client-side key protections.',
     ],
+  },
+  {
+    title: 'Zero-Knowledge Authentication',
+    goal: 'Remove the password from the server entirely by replacing the current SHA-256 auth token with a true zero-knowledge protocol, so that even a full Supabase database breach cannot expose user passwords or keys.',
+    flow: [
+      'Evaluate three candidate protocols: SRP (Secure Remote Password), OPAQUE (asymmetric PAKE), or OPRF-Hardened Token.',
+      'Implement the chosen protocol via Supabase Edge Functions to handle multi-round handshakes.',
+      'Replace SHA-256("username:password") auth token with the ZK protocol output.',
+      'Update password-change flow to re-register the verifier or blinded credential with the server.',
+    ],
+    securityGain: [
+      'The plaintext password and any derivative never leave the client — the server only ever sees a verifier or blinded token.',
+      'A full server database compromise does not expose passwords or allow offline dictionary attacks.',
+      'OPAQUE additionally provides mutual authentication, protecting against phishing and server impersonation.',
+    ],
+    dangers: [],
   },
 ]

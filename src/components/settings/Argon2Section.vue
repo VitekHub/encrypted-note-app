@@ -152,7 +152,7 @@ async function handleApplyCalibration() {
   applyError.value = ''
   try {
     await cryptoService.updateParams(calibrationPassword.value, suggestedCryptoParams.value.params)
-    settings.value.argon2Params = suggestedCryptoParams.value.params
+    await settingsStore.setArgon2Params(suggestedCryptoParams.value.params)
     showNotification('Security parameters strengthened successfully!', 'success')
     suggestedCryptoParams.value = null
     closeApplyDialog()

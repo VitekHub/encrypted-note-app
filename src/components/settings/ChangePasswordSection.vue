@@ -2,7 +2,8 @@
   <div class="section-card">
     <h3 class="section-heading">Password Management</h3>
     <p class="muted-text mb-4">
-      Change your master password. This re-encrypts your RSA private key with the new password.
+      Change your master password. This updates your login credentials and re-encrypts your RSA private key with the new
+      password.
     </p>
     <BaseButton @click="open = true">Change Password</BaseButton>
 
@@ -37,12 +38,13 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch } from 'vue'
-import { cryptoService } from '../../utils/crypto/cryptoService'
+import { useAuthStore } from '../../stores/authStore'
 import { useNotificationStore } from '../../stores/notificationStore'
 import BaseDialog from '../ui/BaseDialog.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import BaseInput from '../ui/BaseInput.vue'
 
+const authStore = useAuthStore()
 const { showNotification } = useNotificationStore()
 
 const open = ref(false)
@@ -76,7 +78,7 @@ async function handleChangePassword() {
   loading.value = true
   error.value = ''
   try {
-    await cryptoService.updatePassword(oldPassword.value, newPassword.value)
+    await authStore.changePassword(oldPassword.value, newPassword.value)
     closeDialog()
     showNotification('Password changed successfully!', 'success')
   } catch (err) {

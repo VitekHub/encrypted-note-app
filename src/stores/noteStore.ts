@@ -3,34 +3,34 @@ import { defineStore } from 'pinia'
 import { storeToRefs } from 'pinia'
 import { cryptoService } from '../utils/crypto/cryptoService'
 import { useAuthStore } from './authStore'
+import { fetchUserData, saveUserData, deleteUserData, hasUserData } from '../utils/supabase/userDataService'
 
-const STORAGE_KEY = 'app-note'
+const DATA_KEY = 'note'
 
 export const useNoteStore = defineStore('note', () => {
   const noteText = ref('')
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const userId = 'TODO'
   const fieldName = 'note'
 
-  function getAuthStore() {
+  function getAuthValues() {
     const authStore = useAuthStore()
-    const { masterKey } = storeToRefs(authStore)
-    return masterKey
+    const { masterKey, userId } = storeToRefs(authStore)
+    return { masterKey: masterKey.value, userId: userId.value }
   }
 
   async function saveNote(plaintext: string): Promise<void> {
-    const masterKey = getAuthStore()
-    if (!masterKey.value) {
-      error.value = 'No active session key.'
+    const { masterKey, userId } = getAuthValues()
+    if (!masterKey || !userId) {
+      error.value = 'No active session.'
       return
     }
     loading.value = true
     error.value = null
     try {
-      const encrypted = await cryptoService.encrypt(plaintext, masterKey.value, fieldName, userId)
-      localStorage.setItem(STORAGE_KEY, encrypted)
+      const encrypted = await cryptoService.encrypt(plaintext, masterKey, fieldName, userId)
+      await saveUserData(DATA_KEY, encrypted)
     } catch {
       error.value = 'Failed to save note.'
     } finally {
@@ -39,21 +39,22 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   async function loadNote(): Promise<string | null> {
-    const masterKey = getAuthStore()
-    if (!masterKey.value) {
-      error.value = 'No active session key.'
+    const { masterKey, userId } = getAuthValues()
+    if (!masterKey || !userId) {
+      error.value = 'No active session.'
       return null
     }
     loading.value = true
     error.value = null
     try {
-      const stored = localStorage.getItem(STORAGE_KEY)
+      const stored = await fetchUserData(DATA_KEY)
       if (!stored) return null
       if (!cryptoService.isEncrypted(stored)) {
         error.value = 'Stored data is not in a valid encrypted format.'
         return null
       }
-      return await cryptoService.decrypt(stored, masterKey.value, fieldName, userId)
+      noteText.value = await cryptoService.decrypt(stored, masterKey, fieldName, userId)
+      return noteText.value
     } catch {
       error.value = 'Wrong password or corrupted data.'
       return null
@@ -62,13 +63,23 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
 
-  function hasNote(): boolean {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored !== null && cryptoService.isEncrypted(stored)
+  async function hasNote(): Promise<boolean> {
+    try {
+      const exists = await hasUserData(DATA_KEY)
+      if (!exists) return false
+      const stored = await fetchUserData(DATA_KEY)
+      return stored !== null && cryptoService.isEncrypted(stored)
+    } catch {
+      return false
+    }
   }
 
-  function clearNote(): void {
-    localStorage.removeItem(STORAGE_KEY)
+  async function clearNote(): Promise<void> {
+    try {
+      await deleteUserData(DATA_KEY)
+    } catch {
+      error.value = 'Failed to clear note.'
+    }
     error.value = null
   }
 

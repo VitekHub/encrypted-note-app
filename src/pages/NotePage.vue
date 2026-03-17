@@ -36,8 +36,8 @@ async function handleSave() {
   }
 }
 
-function handleLock() {
-  authStore.lock()
+async function handleLock() {
+  await authStore.lock()
   error.value = null
   saveStatus.value = ''
   router.push('/unlock')

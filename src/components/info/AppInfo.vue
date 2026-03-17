@@ -3,9 +3,10 @@
     <div>
       <h2 class="section-title section-title--about">About</h2>
       <p class="about-text">
-        A private, zero-knowledge notepad. Your note is encrypted in the browser using AES-256-GCM. Passwords are
-        checked against the HaveIBeenPwned database. This is an alfa version with "Drop Database" button that removes
-        everything from the local storage.
+        A private, end-to-end encrypted notepad with username-based authentication. Your note is protected by a hybrid
+        RSA-4096 + AES-256-GCM encryption scheme where all keys are derived and managed entirely in your browser.
+        Passwords are checked against the HaveIBeenPwned database. Encrypted data is stored in the cloud via Supabase,
+        making your note accessible across devices while remaining unreadable to the server.
       </p>
     </div>
 
@@ -16,7 +17,7 @@
           <span class="feature-dot" />
           <div>
             <span class="font-medium">{{ feature.title }}</span>
-            <span class="feature-desc">- {{ feature.desc }}</span>
+            <span class="feature-desc">{{ ` - ${feature.desc}` }}</span>
           </div>
         </li>
       </ul>
@@ -30,19 +31,13 @@
 import EncryptionRoadmap from './EncryptionRoadmap.vue'
 
 const features = [
-  { title: 'Supabase-powered backend', desc: 'Cloud persistence replacing browser-only localStorage.' },
-  { title: 'Account & email authentication', desc: 'Sign in with your email.' },
   {
-    title: 'Cloud key storage',
-    desc: 'Your master key, encrypted and safely persisted in the database and accessible across devices.',
+    title: 'Zero-knowledge authentication',
+    desc: 'A true zero-knowledge protocol (SRP / OPAQUE) so that passwords never leave the browser.',
   },
   {
     title: 'Recovery phrase',
     desc: 'A personal mnemonic that lets you regain access to your note if you ever forget your password.',
-  },
-  {
-    title: 'Cleaner interface',
-    desc: 'Developer tools like "Drop Database" retire once proper account management ships.',
   },
 ]
 </script>

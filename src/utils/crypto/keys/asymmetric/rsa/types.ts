@@ -6,7 +6,7 @@ import type { Argon2Params } from '../../../argon2Calibration/types'
  * deletion, and password rotation of the encrypted private key.
  *
  * All methods are asynchronous and rely on the Web Crypto API together with
- * the application's `cryptoKeyStorage` and `encryptField`/`decryptField`
+ * the application's `userKeyService` and `passwordDerivedService`
  * helpers.
  */
 export interface RsaKeyService {
@@ -59,14 +59,6 @@ export interface RsaKeyService {
    *   storage, `false` otherwise.
    */
   hasKeys(): Promise<boolean>
-
-  /**
-   * Removes both the public and private keys from storage. Both deletions
-   * are performed concurrently.
-   *
-   * @returns A promise that resolves once both keys have been deleted.
-   */
-  deleteKeys(): Promise<void>
 
   /**
    * Re-encrypts the stored private key under a new password without

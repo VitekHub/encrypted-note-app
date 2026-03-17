@@ -3,6 +3,7 @@ import { masterKeyService } from '../keys/symmetric/master'
 import { fieldKeyService } from '../keys/symmetric/field'
 import { loginLockoutService } from '../../loginLockoutService'
 import { passwordDerivedService } from '../keys/symmetric/passwordDerived'
+import { deleteUserKeysRow } from '../../supabase/userKeyService'
 import { argon2CalibrationService } from '../argon2Calibration'
 import type { CalibrationResult, Argon2Params } from '../argon2Calibration'
 import type { CryptoService } from './types'
@@ -102,11 +103,11 @@ export const cryptoService: CryptoService = {
 
   /** @inheritdoc */
   async teardown(): Promise<void> {
-    await Promise.all([rsaKeyService.deleteKeys(), masterKeyService.deleteKey(), loginLockoutService.reset()])
+    await Promise.all([deleteUserKeysRow(), loginLockoutService.reset()])
   },
 
   /** @inheritdoc */
-  lock() {
+  clear() {
     fieldKeyService.clear()
   },
 }

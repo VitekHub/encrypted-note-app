@@ -1,86 +1,88 @@
 <template>
   <div>
-    <UnlockForm
-      v-model="passwordInput"
-      :signing-up="signingUp"
-      :loading="loading"
-      :error="error"
-      @unlock="handleUnlock"
-      @drop="showDropConfirm = true"
-    />
-    <div class="unlock-separator" />
-    <AppInfo />
+    <div class="flex flex-col gap-4">
+      <p class="muted-text">
+        Welcome back,
+        <strong>{{ username }}</strong>
+        . Enter your passphrase to continue.
+      </p>
 
-    <ConfirmDialog
-      v-if="showDropConfirm"
-      title="Drop Database"
-      message="This will permanently delete your encrypted note and all encryption keys. You will not be able to recover it. Are you sure?"
-      confirm-label="Drop Database"
-      @confirm="handleDrop"
-      @cancel="showDropConfirm = false"
-    />
+      <BaseInput
+        v-model="passphraseInput"
+        label="Passphrase"
+        type="password"
+        placeholder="Enter passphrase..."
+        autocomplete="current-password"
+        @keydown.enter="handleUnlock"
+      />
+
+      <p v-if="error" class="error-text">{{ error }}</p>
+
+      <div class="flex items-center justify-between gap-2.5">
+        <BaseButton :loading="isLoading" :disabled="!passphraseInput || isLoading" @click="handleUnlock">
+          Decrypt & Open
+        </BaseButton>
+        <button class="btn-switch" @click="handleSwitchAccount">Switch account</button>
+      </div>
+    </div>
+
+    <div class="page-separator" />
+    <AppInfo />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/authStore'
-import { useNoteStore } from '../stores/noteStore'
-import UnlockForm from '../components/auth/UnlockForm.vue'
 import AppInfo from '../components/info/AppInfo.vue'
-import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import BaseInput from '../components/ui/BaseInput.vue'
+import BaseButton from '../components/ui/BaseButton.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const noteStore = useNoteStore()
-const { keysExist, isLoading: loading, error } = storeToRefs(authStore)
-const { noteText } = storeToRefs(noteStore)
+const { isLoading, error, username } = storeToRefs(authStore)
 
-const passwordInput = ref('')
-const showDropConfirm = ref(false)
-
-const signingUp = computed(() => !keysExist.value)
-
-onMounted(async () => {
-  await authStore.checkKeysExist()
-})
+const passphraseInput = ref('')
 
 async function handleUnlock() {
-  if (!passwordInput.value) return
+  if (!passphraseInput.value) return
   try {
-    if (signingUp.value) {
-      await authStore.setup(passwordInput.value)
-      router.push('/')
-    } else {
-      await authStore.unlock(passwordInput.value)
-      if (!error.value) {
-        const result = await noteStore.loadNote()
-        if (result !== null) {
-          noteText.value = result
-        }
-        router.push('/')
-      }
-    }
+    await authStore.unlock(username.value!, passphraseInput.value)
+    router.push('/')
   } catch {
     // error is set by the store
   }
 }
 
-async function handleDrop() {
-  await authStore.teardown()
-  noteStore.clearNote()
-  showDropConfirm.value = false
-  error.value = null
-  passwordInput.value = ''
+async function handleSwitchAccount() {
+  await authStore.logout()
+  authStore.error = null
+  router.push('/login')
 }
 </script>
 
 <style scoped>
-.unlock-separator {
+.page-separator {
   margin-top: 2rem;
   margin-bottom: 1.75rem;
   border-top: 1.5px solid var(--color-border);
+}
+
+.btn-switch {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--color-muted);
+  padding: 4px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+
+  &:hover {
+    color: var(--color-text);
+  }
 }
 </style>
