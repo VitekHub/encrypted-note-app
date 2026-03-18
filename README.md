@@ -1,18 +1,30 @@
 # CipherNote
 
-A private, zero-knowledge notepad that runs entirely in the browser.
+A zero-knowledge encrypted notepad. Your note is encrypted client-side before being stored - the server never sees your plaintext.
+
+## How it works
+
+- **Argon2id** derives a password-based key used to protect an **RSA-4096** private key
+- An **AES-GCM master key** is wrapped with your RSA public key and stored server-side
+- Notes are encrypted with a field key derived from the master key
+- The master key only ever lives in memory - it is cleared on lock or logout
 
 ## Features
 
-- **AES-256-GCM encryption** — your note is encrypted client-side before anything is stored; the plaintext never leaves your device
-- **HaveIBeenPwned check** — passwords are screened against the HIBP breach database using the k-anonymity model (only the first 5 characters of a SHA-1 hash are sent; your actual password is never transmitted)
-- **localStorage only** — no server, no accounts, no tracking in this alpha version
+- Account-based with Supabase backend (no plaintext data ever sent)
+- Auto-lock on inactivity
+- Argon2id parameter calibration per device
+- RSA key rotation
+- Login lockout against brute-force
+- Password change with full key re-wrapping
 
 ## Tech Stack
 
-- [Vue 3](https://vuejs.org/) + TypeScript
-- [Vite](https://vitejs.dev/)
-- Web Crypto API (native browser encryption)
+- [Vue 3](https://vuejs.org/) + TypeScript + Pinia
+- [Vite](https://vitejs.dev/) + Tailwind CSS v4
+- Web Crypto API (RSA-4096, AES-GCM)
+- [hash-wasm](https://github.com/nicktindall/hash-wasm) for Argon2id
+- [Supabase](https://supabase.com/) for auth and encrypted data storage
 
 ## Getting Started
 
@@ -29,4 +41,4 @@ npm test
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT - see [LICENSE](LICENSE)

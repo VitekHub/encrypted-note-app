@@ -1,9 +1,12 @@
+import zkAuthDoc from '../../docs/zero-knowledge-auth.md?raw'
+
 export interface RoadmapStep {
   title: string
   goal: string
   flow: string[]
   securityGain: string[]
   dangers: string[]
+  detailsDoc?: string
 }
 
 export const roadmapSteps: RoadmapStep[] = [
@@ -222,5 +225,6 @@ export const roadmapSteps: RoadmapStep[] = [
       'OPAQUE additionally provides mutual authentication, protecting against phishing and server impersonation.',
     ],
     dangers: [],
+    detailsDoc: zkAuthDoc,
   },
 ]
