@@ -11,7 +11,8 @@ CipherNote — a zero-knowledge encrypted notepad. Notes are encrypted client-si
 - **Vue 3** + **TypeScript** + **Pinia** (composition-API stores)
 - **Vite** (dev/build) + **Tailwind CSS v4** (styling via `@tailwindcss/vite` plugin)
 - **Web Crypto API** (RSA-4096, AES-GCM) for all cryptographic operations
-- **hash-wasm** for Argon2id (WASM-based, runs in browser)
+- **hash-wasm** for Argon2id (WASM-based, runs in browser; used for key derivation, not auth)
+- **secure-remote-password** for SRP-6a authentication protocol
 - **Supabase** (`@supabase/supabase-js`) for auth and encrypted data storage
 - **vue-router** v5 for routing
 - **marked** for Markdown rendering, **dompurify** for sanitization
@@ -51,14 +52,15 @@ AES-GCM master key ──HKDF──► per-field keys (e.g. "note" field key)
 ```
 
 - The master key only exists in memory — never persisted. Cleared on lock/logout.
-- Password is never sent to Supabase. An Argon2id-derived hash is used as the auth token instead (`usernameAuthService.deriveAuthToken`).
+- Password is never sent to Supabase. Auth uses SRP-6a (Secure Remote Password) via Edge Functions — only a verifier and zero-knowledge proofs are transmitted, never the password or its hashes.
 - Argon2id parameters are calibrated per-device at signup (3-phase algorithm in `argon2CalibrationService`).
 - `Encryptor` (in `utils/crypto/`) handles low-level AES-GCM encrypt/decrypt with base64 blob format: `salt || [metadata] || iv || ciphertext`.
 
 ### Supabase Integration
 
-- Auth: uses synthetic emails (`username@ciphernote.local`) with Argon2id-derived tokens as passwords.
-- Two tables: `user_keys` (RSA keys, wrapped master key) and `user_data` (encrypted key-value pairs keyed by `data_key`).
+- Auth: uses SRP-6a protocol via Edge Functions (`srp-register`, `srp-login-init`, `srp-login-verify`, `srp-change-password`). Synthetic emails (`username@ciphernote.local`) are still created for Supabase Auth, but the password is never known to the client — only a session token obtained via the SRP handshake is used.
+- Four tables: `user_keys` (RSA keys, wrapped master key), `user_data` (encrypted key-value pairs keyed by `data_key`), `srp_credentials` (salt, verifier, SRP group per user), `srp_sessions` (ephemeral handshake state, auto-expiring).
+- Shared Edge Function helpers in `supabase/functions/_shared/` (`srp.ts`, `http.ts`, `body.ts`, `supabase.ts`).
 - Session persistence is disabled (`persistSession: false`) — auth tokens never touch localStorage.
 - Row-level security and RPC functions (`check_username_available`, `delete_own_account`) are used server-side.
 
