@@ -1,40 +1,10 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import * as srpServer from 'npm:secure-remote-password@0.3.1/server'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-}
+import { badRequest, clientIp, guardPost, isRateLimited, json, serverError, tooManyRequests } from '../_shared/http.ts'
+import { readJsonBody, str } from '../_shared/body.ts'
+import { serviceClient, serviceKey } from '../_shared/supabase.ts'
 
 const SESSION_TTL_MS = 2 * 60 * 1000
-
-// Best-effort per-IP throttle. In-memory, so it only spans a warm instance;
-// it is a first barrier against scripted probing, not a hard guarantee.
-const RATE_LIMIT_WINDOW_MS = 60 * 1000
-const RATE_LIMIT_MAX = 15
-const recentAttempts = new Map<string, number[]>()
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now()
-  const hits = (recentAttempts.get(key) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS)
-  hits.push(now)
-  recentAttempts.set(key, hits)
-  return hits.length > RATE_LIMIT_MAX
-}
-
-function clientIp(req: Request): string {
-  const fwd = req.headers.get('x-forwarded-for')
-  return fwd?.split(',')[0]?.trim() || 'unknown'
-}
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
 
 async function hmacHex(key: string, message: string): Promise<string> {
   const enc = new TextEncoder()
@@ -46,26 +16,21 @@ async function hmacHex(key: string, message: string): Promise<string> {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders })
-  }
-  if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405)
-  }
+  const guard = guardPost(req)
+  if (guard) return guard
 
   if (isRateLimited(clientIp(req))) {
-    return json({ error: 'Too many attempts. Please try again shortly.' }, 429)
+    return tooManyRequests()
   }
 
   try {
-    const body = await req.json().catch(() => null)
-    const username = typeof body?.username === 'string' ? body.username.toLowerCase() : ''
+    const body = await readJsonBody(req)
+    const username = str(body, 'username').toLowerCase()
     if (!username) {
-      return json({ error: 'Invalid credentials.' }, 400)
+      return badRequest()
     }
 
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey)
+    const supabase = serviceClient()
 
     await supabase.from('srp_sessions').delete().lt('expires_at', new Date().toISOString())
 
@@ -79,7 +44,7 @@ Deno.serve(async (req: Request) => {
       .eq('username', username)
       .maybeSingle()
     if (profileError) {
-      return json({ error: 'Login failed.' }, 500)
+      return serverError()
     }
 
     let realSalt: string | null = null
@@ -91,7 +56,7 @@ Deno.serve(async (req: Request) => {
         .eq('user_id', profile.id)
         .maybeSingle()
       if (credError) {
-        return json({ error: 'Login failed.' }, 500)
+        return serverError()
       }
       if (cred) {
         realSalt = cred.salt
@@ -119,11 +84,11 @@ Deno.serve(async (req: Request) => {
       .select('id')
       .single()
     if (insertError || !session) {
-      return json({ error: 'Login failed.' }, 500)
+      return serverError()
     }
 
     return json({ sessionId: session.id, salt: realSalt, B: ephemeral.public })
   } catch (_err) {
-    return json({ error: 'Login failed.' }, 500)
+    return serverError()
   }
 })

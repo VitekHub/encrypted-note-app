@@ -58,13 +58,7 @@ export async function login(username: string, password: string): Promise<string>
 
   const clientEphemeral = srpClient.generateEphemeral()
   const privateKey = srpClient.derivePrivateKey(init.salt, normalizedUsername, password)
-  const clientSession = deriveClientSession(
-    clientEphemeral.secret,
-    init.B,
-    init.salt,
-    normalizedUsername,
-    privateKey
-  )
+  const clientSession = deriveClientSession(clientEphemeral.secret, init.B, init.salt, normalizedUsername, privateKey)
 
   const verifyBody = await callEdgeFunction<{
     M2?: string

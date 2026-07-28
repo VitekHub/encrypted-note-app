@@ -1,22 +1,18 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-}
-
-const USERNAME_DOMAIN = 'ciphernote.local'
-const SRP_GROUP = 'RFC5054-2048'
-const USERNAME_RE = /^[a-zA-Z0-9_]+$/
-
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
+import {
+  badRequest,
+  clientIp,
+  conflict,
+  ERR,
+  guardPost,
+  isRateLimited,
+  json,
+  serverError,
+  tooManyRequests,
+} from '../_shared/http.ts'
+import { readJsonBody, str } from '../_shared/body.ts'
+import { serviceClient } from '../_shared/supabase.ts'
+import { isValidUsername, SRP_GROUP, USERNAME_DOMAIN } from '../_shared/srp.ts'
 
 function randomPassword(): string {
   const bytes = new Uint8Array(48)
@@ -25,32 +21,31 @@ function randomPassword(): string {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders })
-  }
+  const guard = guardPost(req)
+  if (guard) return guard
 
-  if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405)
+  if (isRateLimited(clientIp(req))) {
+    return tooManyRequests()
   }
 
   try {
-    const body = await req.json().catch(() => null)
-    const username = typeof body?.username === 'string' ? body.username.toLowerCase() : ''
-    const salt = typeof body?.salt === 'string' ? body.salt : ''
-    const verifier = typeof body?.verifier === 'string' ? body.verifier : ''
-    const group = typeof body?.group === 'string' ? body.group : ''
+    const body = await readJsonBody(req)
+    const username = str(body, 'username').toLowerCase()
+    const salt = str(body, 'salt')
+    const verifier = str(body, 'verifier')
+    const group = str(body, 'group')
 
-    if (username.length < 3 || username.length > 32 || !USERNAME_RE.test(username)) {
-      return json({ error: 'Invalid username.' }, 400)
+    if (!isValidUsername(username)) {
+      return badRequest(ERR.INVALID_USERNAME)
     }
     if (!salt || !verifier) {
-      return json({ error: 'Missing SRP credentials.' }, 400)
+      return badRequest(ERR.MISSING_CREDENTIALS)
     }
     if (group !== SRP_GROUP) {
-      return json({ error: 'Unsupported SRP group.' }, 400)
+      return badRequest(ERR.UNSUPPORTED_GROUP)
     }
 
-    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const supabase = serviceClient()
 
     const { data: existing, error: lookupError } = await supabase
       .from('profiles')
@@ -58,10 +53,10 @@ Deno.serve(async (req: Request) => {
       .eq('username', username)
       .maybeSingle()
     if (lookupError) {
-      return json({ error: 'Registration failed.' }, 500)
+      return serverError()
     }
     if (existing) {
-      return json({ error: 'Username already taken.' }, 409)
+      return conflict()
     }
 
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
@@ -72,9 +67,9 @@ Deno.serve(async (req: Request) => {
     if (createError || !created?.user) {
       const msg = createError?.message ?? ''
       if (msg.toLowerCase().includes('already')) {
-        return json({ error: 'Username already taken.' }, 409)
+        return conflict()
       }
-      return json({ error: 'Registration failed.' }, 500)
+      return serverError()
     }
 
     const userId = created.user.id
@@ -83,7 +78,7 @@ Deno.serve(async (req: Request) => {
     if (profileError) {
       await supabase.auth.admin.deleteUser(userId)
       const taken = profileError.message.toLowerCase().includes('duplicate')
-      return json({ error: taken ? 'Username already taken.' : 'Registration failed.' }, taken ? 409 : 500)
+      return taken ? conflict() : serverError()
     }
 
     const { error: credError } = await supabase
@@ -91,11 +86,11 @@ Deno.serve(async (req: Request) => {
       .insert({ user_id: userId, salt, verifier, srp_group: group })
     if (credError) {
       await supabase.auth.admin.deleteUser(userId)
-      return json({ error: 'Registration failed.' }, 500)
+      return serverError()
     }
 
     return json({ userId })
   } catch (_err) {
-    return json({ error: 'Registration failed.' }, 500)
+    return serverError()
   }
 })
