@@ -24,6 +24,7 @@
     "js-base64": "^3.7.8",
     "marked": "^17.0.4",
     "pinia": "^3.0.4",
+    "secure-remote-password": "^0.3.1",
     "vue": "^3.4.38",
     "vue-router": "^5.0.3"
   },
