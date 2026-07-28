@@ -9,9 +9,8 @@ import {
   signOut,
   deleteAccount,
   getCurrentSession,
-  deriveAuthToken,
+  changeSrpPassword,
 } from '../utils/auth/usernameAuthService'
-import { supabase } from '../lib/supabase'
 import { loginLockoutService, LockoutError } from '../utils/loginLockoutService'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -124,17 +123,15 @@ export const useAuthStore = defineStore('auth', () => {
     const currentUsername = username.value
     if (!currentUsername) throw new Error('Not authenticated')
 
-    const oldAuthToken = await deriveAuthToken(currentUsername, oldPassword)
-    const newAuthToken = await deriveAuthToken(currentUsername, newPassword)
-
-    const { error: authError } = await supabase.auth.updateUser({ password: newAuthToken })
-    if (authError) throw new Error(authError.message)
-
+    // Re-encrypt key material locally first (this also validates the old
+    // password); then commit the new SRP verifier. If the server step fails,
+    // roll the local re-encryption back so the account stays consistent.
+    await cryptoService.updatePassword(oldPassword, newPassword)
     try {
-      await cryptoService.updatePassword(oldPassword, newPassword)
-    } catch (cryptoError) {
-      await supabase.auth.updateUser({ password: oldAuthToken })
-      throw cryptoError
+      await changeSrpPassword(currentUsername, oldPassword, newPassword)
+    } catch (e) {
+      await cryptoService.updatePassword(newPassword, oldPassword)
+      throw e
     }
   }
 

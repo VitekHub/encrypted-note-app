@@ -152,6 +152,95 @@ export async function login(username: string, password: string): Promise<string>
   return data.user.id
 }
 
+/**
+ * Changes the account password using SRP-6a.
+ *
+ * Runs a fresh SRP handshake to prove knowledge of the OLD password, derives a
+ * brand-new salt and verifier from the NEW password, and asks the authenticated
+ * `srp-change-password` Edge Function to swap the stored credential. Neither the
+ * old nor the new password ever leaves the device.
+ *
+ * This only updates the authentication credential; re-encrypting the user's key
+ * material is handled separately by `cryptoService.updatePassword`.
+ *
+ * @param username - The current account's username
+ * @param oldPassword - The current password (proven, never transmitted)
+ * @param newPassword - The desired new password (never transmitted)
+ * @throws An error with `code: 'invalid_credentials'` if the old password is
+ *   wrong, or a generic error if the handshake or update fails
+ */
+export async function changeSrpPassword(username: string, oldPassword: string, newPassword: string): Promise<void> {
+  const normalizedUsername = username.toLowerCase()
+
+  const initRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-init`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username: normalizedUsername }),
+  })
+  const initBody = (await initRes.json().catch(() => null)) as {
+    sessionId?: string
+    salt?: string
+    B?: string
+    error?: string
+  } | null
+  if (!initRes.ok || !initBody?.sessionId || !initBody.salt || !initBody.B) {
+    throw new Error(initBody?.error || `Password change failed (${initRes.status})`)
+  }
+
+  const clientEphemeral = srpClient.generateEphemeral()
+  const oldPrivateKey = srpClient.derivePrivateKey(initBody.salt, normalizedUsername, oldPassword)
+
+  let clientSession: srpClient.Session
+  try {
+    clientSession = srpClient.deriveSession(
+      clientEphemeral.secret,
+      initBody.B,
+      initBody.salt,
+      normalizedUsername,
+      oldPrivateKey
+    )
+  } catch {
+    throw invalidCredentialsError()
+  }
+
+  const newSalt = srpClient.generateSalt()
+  const newPrivateKey = srpClient.derivePrivateKey(newSalt, normalizedUsername, newPassword)
+  const newVerifier = srpClient.deriveVerifier(newPrivateKey)
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Password change failed: no active session.')
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/srp-change-password`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sessionId: initBody.sessionId,
+      A: clientEphemeral.public,
+      M1: clientSession.proof,
+      salt: newSalt,
+      verifier: newVerifier,
+      group: SRP_GROUP,
+    }),
+  })
+  const body = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null
+  if (res.status === 401) {
+    throw invalidCredentialsError()
+  }
+  if (!res.ok || !body?.success) {
+    throw new Error(body?.error || `Password change failed (${res.status})`)
+  }
+}
+
 const AUTH_TOKEN_ARGON2_PARAMS = {
   iterations: 1,
   memorySize: 65536,
