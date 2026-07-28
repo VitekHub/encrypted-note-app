@@ -5,7 +5,7 @@ import { useSettingsStore } from './settingsStore'
 import { useNoteStore } from './noteStore'
 import {
   register,
-  signIn,
+  login,
   signOut,
   deleteAccount,
   getCurrentSession,
@@ -75,7 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await loginLockoutService.checkLockout()
 
-      const uid = await signIn(usernameInput, password)
+      const uid = await login(usernameInput, password)
       userId.value = uid
       username.value = usernameInput.toLowerCase()
 

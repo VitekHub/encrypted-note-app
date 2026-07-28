@@ -46,6 +46,112 @@ export async function register(username: string, password: string): Promise<stri
   return body.userId
 }
 
+/**
+ * Builds an "invalid credentials" error carrying the `invalid_credentials`
+ * code so callers (the auth store lockout logic) treat it as a failed attempt.
+ */
+function invalidCredentialsError(): Error & { code: string } {
+  const err = new Error('Invalid username or password.') as Error & { code: string }
+  err.code = 'invalid_credentials'
+  return err
+}
+
+/**
+ * Logs an existing user in using the SRP-6a handshake.
+ *
+ * Two round trips: `srp-login-init` returns the salt and the server's public
+ * ephemeral `B`; the client derives the shared session key and a proof `M1`,
+ * which `srp-login-verify` checks before minting a Supabase session. The
+ * server's proof `M2` is verified locally so the client also authenticates the
+ * server. The password never leaves the device.
+ *
+ * @param username - Username to sign in with (case-insensitive)
+ * @param password - User's plaintext password
+ * @returns The authenticated Supabase user ID
+ * @throws An error with `code: 'invalid_credentials'` on a bad username or
+ *   password, or a generic error if the handshake or session setup fails
+ */
+export async function login(username: string, password: string): Promise<string> {
+  const normalizedUsername = username.toLowerCase()
+
+  const initRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-init`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username: normalizedUsername }),
+  })
+  const initBody = (await initRes.json().catch(() => null)) as {
+    sessionId?: string
+    salt?: string
+    B?: string
+    error?: string
+  } | null
+  if (initRes.status === 404 || initRes.status === 401) {
+    throw invalidCredentialsError()
+  }
+  if (!initRes.ok || !initBody?.sessionId || !initBody.salt || !initBody.B) {
+    throw new Error(initBody?.error || `Login failed (${initRes.status})`)
+  }
+
+  const clientEphemeral = srpClient.generateEphemeral()
+  const privateKey = srpClient.derivePrivateKey(initBody.salt, normalizedUsername, password)
+
+  let clientSession: srpClient.Session
+  try {
+    clientSession = srpClient.deriveSession(
+      clientEphemeral.secret,
+      initBody.B,
+      initBody.salt,
+      normalizedUsername,
+      privateKey
+    )
+  } catch {
+    throw invalidCredentialsError()
+  }
+
+  const verifyRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-verify`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sessionId: initBody.sessionId,
+      A: clientEphemeral.public,
+      M1: clientSession.proof,
+    }),
+  })
+  const verifyBody = (await verifyRes.json().catch(() => null)) as {
+    M2?: string
+    access_token?: string
+    refresh_token?: string
+    error?: string
+  } | null
+  if (verifyRes.status === 401) {
+    throw invalidCredentialsError()
+  }
+  if (!verifyRes.ok || !verifyBody?.M2 || !verifyBody.access_token || !verifyBody.refresh_token) {
+    throw new Error(verifyBody?.error || `Login failed (${verifyRes.status})`)
+  }
+
+  try {
+    srpClient.verifySession(clientEphemeral.public, clientSession, verifyBody.M2)
+  } catch {
+    throw new Error('Server authentication failed.')
+  }
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: verifyBody.access_token,
+    refresh_token: verifyBody.refresh_token,
+  })
+  if (error || !data.user) {
+    throw new Error('Login failed: could not establish session.')
+  }
+  return data.user.id
+}
+
 const AUTH_TOKEN_ARGON2_PARAMS = {
   iterations: 1,
   memorySize: 65536,
