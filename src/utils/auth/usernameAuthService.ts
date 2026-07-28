@@ -1,7 +1,50 @@
 import { argon2id } from 'hash-wasm'
+import * as srpClient from 'secure-remote-password/client'
 import { supabase } from '../../lib/supabase'
+import { SRP_GROUP } from './srp/srpConfig'
 
 const USERNAME_DOMAIN = 'ciphernote.local'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+
+/**
+ * Registers a new account using SRP-6a.
+ *
+ * The salt and verifier are derived locally from the username and password so
+ * that neither the password nor any crackable hash of it ever leaves the
+ * device. Only `(salt, verifier)` are sent to the `srp-register` Edge Function,
+ * which creates the auth user, profile, and credential row server-side.
+ *
+ * @param username - Desired username (case-insensitive; stored lowercase)
+ * @param password - User's plaintext password (never stored or transmitted)
+ * @returns The newly created Supabase user ID
+ * @throws If the username is taken or registration otherwise fails
+ */
+export async function register(username: string, password: string): Promise<string> {
+  const normalizedUsername = username.toLowerCase()
+  const salt = srpClient.generateSalt()
+  const privateKey = srpClient.derivePrivateKey(salt, normalizedUsername, password)
+  const verifier = srpClient.deriveVerifier(privateKey)
+
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/srp-register`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ username: normalizedUsername, salt, verifier, group: SRP_GROUP }),
+  })
+
+  const body = (await res.json().catch(() => null)) as { userId?: string; error?: string } | null
+  if (!res.ok) {
+    throw new Error(body?.error || `Registration failed (${res.status})`)
+  }
+  if (!body?.userId) {
+    throw new Error('Registration failed: no user id returned')
+  }
+  return body.userId
+}
 
 const AUTH_TOKEN_ARGON2_PARAMS = {
   iterations: 1,

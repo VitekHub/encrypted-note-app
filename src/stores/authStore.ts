@@ -4,7 +4,7 @@ import { cryptoService } from '../utils/crypto/cryptoService'
 import { useSettingsStore } from './settingsStore'
 import { useNoteStore } from './noteStore'
 import {
-  signUp,
+  register,
   signIn,
   signOut,
   deleteAccount,
@@ -48,7 +48,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
     error.value = null
     try {
-      const uid = await signUp(usernameInput, password)
+      const uid = await register(usernameInput, password)
       userId.value = uid
       username.value = usernameInput.toLowerCase()
 
