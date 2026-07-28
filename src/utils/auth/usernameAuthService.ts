@@ -1,9 +1,7 @@
 import * as srpClient from 'secure-remote-password/client'
 import { supabase } from '../../lib/supabase'
 import { SRP_GROUP } from './srp/srpConfig'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+import { callEdgeFunction, deriveClientSession, srpLoginInit } from './srp/srpEdgeClient'
 
 /**
  * Registers a new account using SRP-6a.
@@ -24,33 +22,15 @@ export async function register(username: string, password: string): Promise<stri
   const privateKey = srpClient.derivePrivateKey(salt, normalizedUsername, password)
   const verifier = srpClient.deriveVerifier(privateKey)
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/srp-register`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ username: normalizedUsername, salt, verifier, group: SRP_GROUP }),
-  })
-
-  const body = (await res.json().catch(() => null)) as { userId?: string; error?: string } | null
-  if (!res.ok) {
-    throw new Error(body?.error || `Registration failed (${res.status})`)
-  }
-  if (!body?.userId) {
+  const body = await callEdgeFunction<{ userId?: string }>(
+    'srp-register',
+    { username: normalizedUsername, salt, verifier, group: SRP_GROUP },
+    { failureLabel: 'Registration' }
+  )
+  if (!body.userId) {
     throw new Error('Registration failed: no user id returned')
   }
   return body.userId
-}
-
-/**
- * Builds an "invalid credentials" error carrying the `invalid_credentials`
- * code so callers (the auth store lockout logic) treat it as a failed attempt.
- */
-function invalidCredentialsError(): Error & { code: string } {
-  const err = new Error('Invalid username or password.') as Error & { code: string }
-  err.code = 'invalid_credentials'
-  return err
 }
 
 /**
@@ -71,66 +51,32 @@ function invalidCredentialsError(): Error & { code: string } {
 export async function login(username: string, password: string): Promise<string> {
   const normalizedUsername = username.toLowerCase()
 
-  const initRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-init`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ username: normalizedUsername }),
+  const init = await srpLoginInit(normalizedUsername, {
+    failureLabel: 'Login',
+    invalidCredentialStatuses: [401, 404],
   })
-  const initBody = (await initRes.json().catch(() => null)) as {
-    sessionId?: string
-    salt?: string
-    B?: string
-    error?: string
-  } | null
-  if (initRes.status === 404 || initRes.status === 401) {
-    throw invalidCredentialsError()
-  }
-  if (!initRes.ok || !initBody?.sessionId || !initBody.salt || !initBody.B) {
-    throw new Error(initBody?.error || `Login failed (${initRes.status})`)
-  }
 
   const clientEphemeral = srpClient.generateEphemeral()
-  const privateKey = srpClient.derivePrivateKey(initBody.salt, normalizedUsername, password)
+  const privateKey = srpClient.derivePrivateKey(init.salt, normalizedUsername, password)
+  const clientSession = deriveClientSession(
+    clientEphemeral.secret,
+    init.B,
+    init.salt,
+    normalizedUsername,
+    privateKey
+  )
 
-  let clientSession: srpClient.Session
-  try {
-    clientSession = srpClient.deriveSession(
-      clientEphemeral.secret,
-      initBody.B,
-      initBody.salt,
-      normalizedUsername,
-      privateKey
-    )
-  } catch {
-    throw invalidCredentialsError()
-  }
-
-  const verifyRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-verify`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sessionId: initBody.sessionId,
-      A: clientEphemeral.public,
-      M1: clientSession.proof,
-    }),
-  })
-  const verifyBody = (await verifyRes.json().catch(() => null)) as {
+  const verifyBody = await callEdgeFunction<{
     M2?: string
     access_token?: string
     refresh_token?: string
-    error?: string
-  } | null
-  if (verifyRes.status === 401) {
-    throw invalidCredentialsError()
-  }
-  if (!verifyRes.ok || !verifyBody?.M2 || !verifyBody.access_token || !verifyBody.refresh_token) {
-    throw new Error(verifyBody?.error || `Login failed (${verifyRes.status})`)
+  }>(
+    'srp-login-verify',
+    { sessionId: init.sessionId, A: clientEphemeral.public, M1: clientSession.proof },
+    { failureLabel: 'Login', invalidCredentialStatuses: [401] }
+  )
+  if (!verifyBody.M2 || !verifyBody.access_token || !verifyBody.refresh_token) {
+    throw new Error('Login failed: incomplete server response')
   }
 
   try {
@@ -169,39 +115,17 @@ export async function login(username: string, password: string): Promise<string>
 export async function changeSrpPassword(username: string, oldPassword: string, newPassword: string): Promise<void> {
   const normalizedUsername = username.toLowerCase()
 
-  const initRes = await fetch(`${SUPABASE_URL}/functions/v1/srp-login-init`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ username: normalizedUsername }),
-  })
-  const initBody = (await initRes.json().catch(() => null)) as {
-    sessionId?: string
-    salt?: string
-    B?: string
-    error?: string
-  } | null
-  if (!initRes.ok || !initBody?.sessionId || !initBody.salt || !initBody.B) {
-    throw new Error(initBody?.error || `Password change failed (${initRes.status})`)
-  }
+  const init = await srpLoginInit(normalizedUsername, { failureLabel: 'Password change' })
 
   const clientEphemeral = srpClient.generateEphemeral()
-  const oldPrivateKey = srpClient.derivePrivateKey(initBody.salt, normalizedUsername, oldPassword)
-
-  let clientSession: srpClient.Session
-  try {
-    clientSession = srpClient.deriveSession(
-      clientEphemeral.secret,
-      initBody.B,
-      initBody.salt,
-      normalizedUsername,
-      oldPrivateKey
-    )
-  } catch {
-    throw invalidCredentialsError()
-  }
+  const oldPrivateKey = srpClient.derivePrivateKey(init.salt, normalizedUsername, oldPassword)
+  const clientSession = deriveClientSession(
+    clientEphemeral.secret,
+    init.B,
+    init.salt,
+    normalizedUsername,
+    oldPrivateKey
+  )
 
   const newSalt = srpClient.generateSalt()
   const newPrivateKey = srpClient.derivePrivateKey(newSalt, normalizedUsername, newPassword)
@@ -214,27 +138,20 @@ export async function changeSrpPassword(username: string, oldPassword: string, n
     throw new Error('Password change failed: no active session.')
   }
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/srp-change-password`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sessionId: initBody.sessionId,
+  const body = await callEdgeFunction<{ success?: boolean }>(
+    'srp-change-password',
+    {
+      sessionId: init.sessionId,
       A: clientEphemeral.public,
       M1: clientSession.proof,
       salt: newSalt,
       verifier: newVerifier,
       group: SRP_GROUP,
-    }),
-  })
-  const body = (await res.json().catch(() => null)) as { success?: boolean; error?: string } | null
-  if (res.status === 401) {
-    throw invalidCredentialsError()
-  }
-  if (!res.ok || !body?.success) {
-    throw new Error(body?.error || `Password change failed (${res.status})`)
+    },
+    { token: session.access_token, failureLabel: 'Password change', invalidCredentialStatuses: [401] }
+  )
+  if (!body.success) {
+    throw new Error('Password change failed.')
   }
 }
 
