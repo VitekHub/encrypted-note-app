@@ -52,7 +52,7 @@ export async function callEdgeFunction<T>(slug: string, payload: unknown, opts: 
 }
 
 export interface SrpInit {
-  sessionId: string
+  handshakeId: string
   salt: string
   B: string
 }
@@ -65,15 +65,15 @@ export async function srpLoginInit(
   username: string,
   opts: { failureLabel: string; invalidCredentialStatuses?: number[] }
 ): Promise<SrpInit> {
-  const body = await callEdgeFunction<{ sessionId?: string; salt?: string; B?: string }>(
+  const body = await callEdgeFunction<{ handshakeId?: string; salt?: string; B?: string }>(
     'srp-login-init',
     { username },
     opts
   )
-  if (!body.sessionId || !body.salt || !body.B) {
+  if (!body.handshakeId || !body.salt || !body.B) {
     throw new Error(`${opts.failureLabel} failed: incomplete server response`)
   }
-  return { sessionId: body.sessionId, salt: body.salt, B: body.B }
+  return { handshakeId: body.handshakeId, salt: body.salt, B: body.B }
 }
 
 /**

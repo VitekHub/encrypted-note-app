@@ -11,7 +11,7 @@ export function isValidUsername(username: string): boolean {
   return username.length >= 3 && username.length <= 32 && USERNAME_RE.test(username)
 }
 
-export interface LoadedSession {
+export interface LoadedHandshake {
   id: string
   user_id: string
   server_b: string
@@ -19,31 +19,31 @@ export interface LoadedSession {
 }
 
 /**
- * Loads a single-use SRP handshake session and deletes it regardless of
- * outcome. Returns the row for the caller to authorize/verify, or a ready
- * Response when the session is missing or the lookup failed.
+ * Loads a single-use SRP handshake and deletes it regardless of outcome.
+ * Returns the row for the caller to authorize/verify, or a ready Response
+ * when the handshake is missing or the lookup failed.
  */
-export async function consumeSession(
+export async function consumeHandshake(
   supabase: SupabaseClient,
-  sessionId: string
-): Promise<{ session: LoadedSession } | { errorResponse: Response }> {
-  const { data: session, error } = await supabase
-    .from('srp_sessions')
+  handshakeId: string
+): Promise<{ handshake: LoadedHandshake } | { errorResponse: Response }> {
+  const { data: handshake, error } = await supabase
+    .from('srp_handshakes')
     .select('id, user_id, server_b, expires_at')
-    .eq('id', sessionId)
+    .eq('id', handshakeId)
     .maybeSingle()
   if (error) {
     return { errorResponse: serverError() }
   }
-  if (!session) {
+  if (!handshake) {
     return { errorResponse: unauthorized() }
   }
-  await supabase.from('srp_sessions').delete().eq('id', session.id)
-  return { session: session as LoadedSession }
+  await supabase.from('srp_handshakes').delete().eq('id', handshake.id)
+  return { handshake: handshake as LoadedHandshake }
 }
 
-export function isSessionExpired(session: LoadedSession): boolean {
-  return new Date(session.expires_at).getTime() < Date.now()
+export function isHandshakeExpired(handshake: LoadedHandshake): boolean {
+  return new Date(handshake.expires_at).getTime() < Date.now()
 }
 
 /** Fetches the stored credential and username for a user in one step. */

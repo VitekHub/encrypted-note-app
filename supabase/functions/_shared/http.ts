@@ -17,7 +17,7 @@ export const ERR = {
   USERNAME_TAKEN: 'Username already taken.',
   NOT_AUTHENTICATED: 'Not authenticated.',
   NOT_AUTHORIZED: 'Not authorized.',
-  SESSION_EXPIRED: 'Session expired.',
+  HANDSHAKE_EXPIRED: 'Handshake expired.',
 } as const
 
 export function json(body: unknown, status = 200): Response {

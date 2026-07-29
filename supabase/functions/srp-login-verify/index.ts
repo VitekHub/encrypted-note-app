@@ -13,20 +13,20 @@ import {
 } from '../_shared/http.ts'
 import { readJsonBody, str } from '../_shared/body.ts'
 import { anonClient, serviceClient } from '../_shared/supabase.ts'
-import { consumeSession, isSessionExpired, loadCredential, USERNAME_DOMAIN, verifyProof } from '../_shared/srp.ts'
+import { consumeHandshake, isHandshakeExpired, loadCredential, USERNAME_DOMAIN, verifyProof } from '../_shared/srp.ts'
 
-type VerifyFields = { sessionId: string; clientPublic: string; clientProof: string }
+type VerifyFields = { handshakeId: string; clientPublic: string; clientProof: string }
 
 /** Parses and validates the three required SRP verify fields. */
 async function parseVerifyRequest(req: Request): Promise<{ errorResponse: Response } | VerifyFields> {
   const body = await readJsonBody(req)
-  const sessionId = str(body, 'sessionId')
+  const handshakeId = str(body, 'handshakeId')
   const clientPublic = str(body, 'A')
   const clientProof = str(body, 'M1')
-  if (!sessionId || !clientPublic || !clientProof) {
+  if (!handshakeId || !clientPublic || !clientProof) {
     return { errorResponse: badRequest(ERR.INVALID_CREDENTIALS) }
   }
-  return { sessionId, clientPublic, clientProof }
+  return { handshakeId, clientPublic, clientProof }
 }
 
 type SessionTokens = { access_token: string; refresh_token: string }
@@ -63,22 +63,22 @@ async function mintSessionTokens(
 async function handleLoginVerify(req: Request): Promise<Response> {
   const parsed = await parseVerifyRequest(req)
   if ('errorResponse' in parsed) return parsed.errorResponse
-  const { sessionId, clientPublic, clientProof } = parsed
+  const { handshakeId, clientPublic, clientProof } = parsed
 
   const supabase = serviceClient()
 
-  const loaded = await consumeSession(supabase, sessionId)
+  const loaded = await consumeHandshake(supabase, handshakeId)
   if ('errorResponse' in loaded) return loaded.errorResponse
-  const { session } = loaded
+  const { handshake } = loaded
 
-  if (isSessionExpired(session)) {
-    return unauthorized(ERR.SESSION_EXPIRED)
+  if (isHandshakeExpired(handshake)) {
+    return unauthorized(ERR.HANDSHAKE_EXPIRED)
   }
 
-  const cred = await loadCredential(supabase, session.user_id)
+  const cred = await loadCredential(supabase, handshake.user_id)
   if ('errorResponse' in cred) return cred.errorResponse
 
-  const proof = verifyProof(session.server_b, clientPublic, cred.salt, cred.username, cred.verifier, clientProof)
+  const proof = verifyProof(handshake.server_b, clientPublic, cred.salt, cred.username, cred.verifier, clientProof)
   if (!proof) {
     return unauthorized()
   }

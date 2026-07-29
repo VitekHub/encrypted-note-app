@@ -59,7 +59,7 @@ AES-GCM master key ──HKDF──► per-field keys (e.g. "note" field key)
 ### Supabase Integration
 
 - Auth: uses SRP-6a protocol via Edge Functions (`srp-register`, `srp-login-init`, `srp-login-verify`, `srp-change-password`). Synthetic emails (`username@ciphernote.local`) are still created for Supabase Auth, but the password is never known to the client — only a session token obtained via the SRP handshake is used.
-- Four tables: `user_keys` (RSA keys, wrapped master key), `user_data` (encrypted key-value pairs keyed by `data_key`), `srp_credentials` (salt, verifier, SRP group per user), `srp_sessions` (ephemeral handshake state, auto-expiring).
+- Four tables: `user_keys` (RSA keys, wrapped master key), `user_data` (encrypted key-value pairs keyed by `data_key`), `srp_credentials` (salt, verifier, SRP group per user), `srp_handshakes` (ephemeral handshake state, auto-expiring).
 - Shared Edge Function helpers in `supabase/functions/_shared/` (`srp.ts`, `http.ts`, `body.ts`, `supabase.ts`).
 - Session persistence is disabled (`persistSession: false`) — auth tokens never touch localStorage.
 - Row-level security and RPC functions (`check_username_available`, `delete_own_account`) are used server-side.

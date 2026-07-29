@@ -5,7 +5,7 @@ import { badRequest, clientIp, guardPost, isRateLimited, json, serverError, tooM
 import { readJsonBody, str } from '../_shared/body.ts'
 import { serviceClient, serviceKey } from '../_shared/supabase.ts'
 
-const SESSION_TTL_MS = 2 * 60 * 1000
+const HANDSHAKE_TTL_MS = 2 * 60 * 1000
 
 async function hmacHex(key: string, message: string): Promise<string> {
   const enc = new TextEncoder()
@@ -76,7 +76,7 @@ const NIL_USER_ID = '00000000-0000-0000-0000-000000000000'
  * probes can't tell real users from nonexistent ones.
  *
  * Timing equalization: the dummy credential SELECT matches the real path's
- * second round trip, and the two HMACs stand in for its session INSERT. The
+ * second round trip, and the two HMACs stand in for its handshake INSERT. The
  * remaining gap is small; fully closing it needs a decoy/honeypot account.
  */
 async function decoyResponse(supabase: SupabaseClient, username: string): Promise<Response> {
@@ -86,29 +86,29 @@ async function decoyResponse(supabase: SupabaseClient, username: string): Promis
     supabase.from('srp_credentials').select('salt, verifier').eq('user_id', NIL_USER_ID).maybeSingle(),
   ])
   const decoyEphemeral = srpServer.generateEphemeral(decoyVerifier)
-  return json({ sessionId: crypto.randomUUID(), salt: decoySalt, B: decoyEphemeral.public })
+  return json({ handshakeId: crypto.randomUUID(), salt: decoySalt, B: decoyEphemeral.public })
 }
 
-/** Persists a one-time SRP handshake session and returns its id. */
-async function createSession(
+/** Persists a one-time SRP handshake and returns its id. */
+async function createHandshake(
   supabase: SupabaseClient,
   userId: string,
   ephemeral: { secret: string; public: string }
-): Promise<{ errorResponse: Response } | { sessionId: string }> {
-  const { data: session, error } = await supabase
-    .from('srp_sessions')
+): Promise<{ errorResponse: Response } | { handshakeId: string }> {
+  const { data: handshake, error } = await supabase
+    .from('srp_handshakes')
     .insert({
       user_id: userId,
       server_b: ephemeral.secret,
       public_b: ephemeral.public,
-      expires_at: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+      expires_at: new Date(Date.now() + HANDSHAKE_TTL_MS).toISOString(),
     })
     .select('id')
     .single()
-  if (error || !session) {
+  if (error || !handshake) {
     return { errorResponse: serverError() }
   }
-  return { sessionId: session.id }
+  return { handshakeId: handshake.id }
 }
 
 async function handleLoginInit(req: Request): Promise<Response> {
@@ -120,11 +120,11 @@ async function handleLoginInit(req: Request): Promise<Response> {
 
   const supabase = serviceClient()
 
-  // Best-effort purge of expired sessions, overlapped with the account lookup
+  // Best-effort purge of expired handshakes, overlapped with the account lookup
   // so it never blocks the response. Errors are swallowed (cleanup must not
   // fail the login).
   const cleanup = supabase
-    .from('srp_sessions')
+    .from('srp_handshakes')
     .delete()
     .lt('expires_at', new Date().toISOString())
     .then(
@@ -142,10 +142,10 @@ async function handleLoginInit(req: Request): Promise<Response> {
   const { userId, credentials } = account
   const ephemeral = srpServer.generateEphemeral(credentials.verifier)
 
-  const session = await createSession(supabase, userId, ephemeral)
-  if ('errorResponse' in session) return session.errorResponse
+  const created = await createHandshake(supabase, userId, ephemeral)
+  if ('errorResponse' in created) return created.errorResponse
 
-  return json({ sessionId: session.sessionId, salt: credentials.salt, B: ephemeral.public })
+  return json({ handshakeId: created.handshakeId, salt: credentials.salt, B: ephemeral.public })
 }
 
 Deno.serve(async (req: Request) => {

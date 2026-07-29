@@ -112,7 +112,7 @@ describe('login', () => {
   }
 
   it('completes the handshake and establishes a session', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
     supabaseMock.auth.setSession.mockResolvedValue({ data: { user: { id: 'uid-9' } }, error: null })
 
@@ -127,7 +127,7 @@ describe('login', () => {
   })
 
   it('sends A and M1 to srp-login-verify', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
     supabaseMock.auth.setSession.mockResolvedValue({ data: { user: { id: 'uid-9' } }, error: null })
 
@@ -136,7 +136,7 @@ describe('login', () => {
     const verifyCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('srp-login-verify'))
     expect(verifyCall).toBeDefined()
     const sent = JSON.parse((verifyCall![1] as RequestInit).body as string)
-    expect(sent).toEqual({ sessionId: 'sess-1', A: 'A_PUBLIC', M1: 'M1' })
+    expect(sent).toEqual({ handshakeId: 'sess-1', A: 'A_PUBLIC', M1: 'M1' })
   })
 
   it('throws invalid_credentials when the account is unknown (init 404)', async () => {
@@ -145,7 +145,7 @@ describe('login', () => {
   })
 
   it('throws invalid_credentials when deriving the session fails', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     vi.mocked(srpClient.deriveSession).mockImplementation(() => {
       throw new Error('bad B')
     })
@@ -153,13 +153,13 @@ describe('login', () => {
   })
 
   it('throws invalid_credentials when the proof is rejected (verify 401)', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     mockVerify(401, { error: 'Invalid credentials.' })
     await expect(login('alice', 'wrong')).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
 
   it('throws when the server proof M2 cannot be verified', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     mockVerify(200, { M2: 'bad', access_token: 'access', refresh_token: 'refresh' })
     vi.mocked(srpClient.verifySession).mockImplementation(() => {
       throw new Error('mismatch')
@@ -168,7 +168,7 @@ describe('login', () => {
   })
 
   it('throws when the session cannot be established', async () => {
-    mockInit(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
     mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
     supabaseMock.auth.setSession.mockResolvedValue({ data: { user: null }, error: { message: 'nope' } })
     await expect(login('alice', 'password')).rejects.toThrow('could not establish session')
@@ -184,7 +184,7 @@ describe('changeSrpPassword', () => {
 
   it('proves the old password then sends new credentials with the session token', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+      .mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
       .mockResolvedValueOnce(jsonResponse(200, { success: true }))
 
     await changeSrpPassword('Alice', 'oldPass', 'newPass')
@@ -194,13 +194,13 @@ describe('changeSrpPassword', () => {
     const headers = (changeCall![1] as RequestInit).headers as Record<string, string>
     expect(headers.Authorization).toBe('Bearer jwt-token')
     const sent = JSON.parse((changeCall![1] as RequestInit).body as string)
-    expect(sent).toMatchObject({ sessionId: 'sess-1', A: 'A_PUBLIC', M1: 'M1', salt: 'SALT' })
+    expect(sent).toMatchObject({ handshakeId: 'sess-1', A: 'A_PUBLIC', M1: 'M1', salt: 'SALT' })
     expect(sent.verifier).toBe('V(PK(SALT|alice|newPass))')
   })
 
   it('throws invalid_credentials when the old password proof fails (401)', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+      .mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
       .mockResolvedValueOnce(jsonResponse(401, { error: 'Invalid credentials.' }))
 
     await expect(changeSrpPassword('alice', 'wrong', 'newPass')).rejects.toMatchObject({
@@ -209,7 +209,7 @@ describe('changeSrpPassword', () => {
   })
 
   it('throws when there is no active session', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { sessionId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
     supabaseMock.auth.getSession.mockResolvedValue({ data: { session: null } })
 
     await expect(changeSrpPassword('alice', 'old', 'new')).rejects.toThrow('no active session')

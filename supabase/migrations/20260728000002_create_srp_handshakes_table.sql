@@ -1,5 +1,5 @@
 /*
-  # Create srp_sessions table
+  # Create srp_handshakes table
 
   ## Summary
   Holds short-lived, per-login-attempt SRP-6a handshake state. SRP login is a two-round
@@ -13,10 +13,10 @@
 
   ## New Tables
 
-  ### `srp_sessions`
+  ### `srp_handshakes`
   | Column     | Type        | Description                                                     |
   |------------|-------------|-----------------------------------------------------------------|
-  | id         | uuid PK     | Session id, defaults to gen_random_uuid()                       |
+  | id         | uuid PK     | Handshake id, defaults to gen_random_uuid()                    |
   | user_id    | uuid FK     | References profiles.id on delete cascade, not null              |
   | server_b   | text        | Server ephemeral secret `b` (base64/hex), not null              |
   | public_b   | text        | Server ephemeral public `B` sent to the client, not null        |
@@ -37,7 +37,7 @@
   2. Storing `b` briefly server-side is inherent to SRP being a two-round protocol.
 */
 
-CREATE TABLE IF NOT EXISTS public.srp_sessions (
+CREATE TABLE IF NOT EXISTS public.srp_handshakes (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   server_b   text NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.srp_sessions (
   created_at timestamptz DEFAULT now()
 );
 
-ALTER TABLE public.srp_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.srp_handshakes ENABLE ROW LEVEL SECURITY;
 
-CREATE INDEX IF NOT EXISTS srp_sessions_expires_at_idx
-  ON public.srp_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS srp_handshakes_expires_at_idx
+  ON public.srp_handshakes (expires_at);

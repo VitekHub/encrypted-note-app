@@ -72,7 +72,7 @@ export async function login(username: string, password: string): Promise<string>
     refresh_token?: string
   }>(
     'srp-login-verify',
-    { sessionId: init.sessionId, A: clientEphemeral.public, M1: clientSession.proof },
+    { handshakeId: init.handshakeId, A: clientEphemeral.public, M1: clientSession.proof },
     { failureLabel: 'Login', invalidCredentialStatuses: [401] }
   )
   if (!verifyBody.M2 || !verifyBody.access_token || !verifyBody.refresh_token) {
@@ -141,7 +141,7 @@ export async function changeSrpPassword(username: string, oldPassword: string, n
   const body = await callEdgeFunction<{ success?: boolean }>(
     'srp-change-password',
     {
-      sessionId: init.sessionId,
+      handshakeId: init.handshakeId,
       A: clientEphemeral.public,
       M1: clientSession.proof,
       salt: newSalt,

@@ -14,10 +14,10 @@ import {
 } from '../_shared/http.ts'
 import { readJsonBody, str } from '../_shared/body.ts'
 import { serviceClient, userClient } from '../_shared/supabase.ts'
-import { consumeSession, isSessionExpired, loadCredential, SRP_GROUP, verifyProof } from '../_shared/srp.ts'
+import { consumeHandshake, isHandshakeExpired, loadCredential, SRP_GROUP, verifyProof } from '../_shared/srp.ts'
 
 type ChangePasswordFields = {
-  sessionId: string
+  handshakeId: string
   clientPublic: string
   clientProof: string
   newSalt: string
@@ -28,20 +28,20 @@ type ChangePasswordFields = {
 /** Parses and validates the six required change-password fields. */
 async function parseChangePasswordRequest(req: Request): Promise<{ errorResponse: Response } | ChangePasswordFields> {
   const body = await readJsonBody(req)
-  const sessionId = str(body, 'sessionId')
+  const handshakeId = str(body, 'handshakeId')
   const clientPublic = str(body, 'A')
   const clientProof = str(body, 'M1')
   const newSalt = str(body, 'salt')
   const newVerifier = str(body, 'verifier')
   const newGroup = str(body, 'group')
 
-  if (!sessionId || !clientPublic || !clientProof || !newSalt || !newVerifier || !newGroup) {
+  if (!handshakeId || !clientPublic || !clientProof || !newSalt || !newVerifier || !newGroup) {
     return { errorResponse: badRequest() }
   }
   if (newGroup !== SRP_GROUP) {
     return { errorResponse: badRequest(ERR.UNSUPPORTED_GROUP) }
   }
-  return { sessionId, clientPublic, clientProof, newSalt, newVerifier, newGroup }
+  return { handshakeId, clientPublic, clientProof, newSalt, newVerifier, newGroup }
 }
 
 /** Identifies the caller from their JWT. */
@@ -86,22 +86,22 @@ async function handleChangePassword(req: Request): Promise<Response> {
 
   const supabase = serviceClient()
 
-  const loaded = await consumeSession(supabase, parsed.sessionId)
+  const loaded = await consumeHandshake(supabase, parsed.handshakeId)
   if ('errorResponse' in loaded) return loaded.errorResponse
-  const { session } = loaded
+  const { handshake } = loaded
 
-  if (session.user_id !== caller.userId) {
+  if (handshake.user_id !== caller.userId) {
     return forbidden()
   }
-  if (isSessionExpired(session)) {
-    return unauthorized(ERR.SESSION_EXPIRED)
+  if (isHandshakeExpired(handshake)) {
+    return unauthorized(ERR.HANDSHAKE_EXPIRED)
   }
 
-  const cred = await loadCredential(supabase, session.user_id)
+  const cred = await loadCredential(supabase, handshake.user_id)
   if ('errorResponse' in cred) return cred.errorResponse
 
   const proof = verifyProof(
-    session.server_b,
+    handshake.server_b,
     parsed.clientPublic,
     cred.salt,
     cred.username,
@@ -112,7 +112,7 @@ async function handleChangePassword(req: Request): Promise<Response> {
     return unauthorized()
   }
 
-  const updated = await updateCredential(supabase, session.user_id, parsed)
+  const updated = await updateCredential(supabase, handshake.user_id, parsed)
   if ('errorResponse' in updated) return updated.errorResponse
 
   return json({ success: true })
