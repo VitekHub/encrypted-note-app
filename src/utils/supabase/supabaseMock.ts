@@ -7,6 +7,7 @@ export interface SupabaseChainResult {
 
 export interface SupabaseAuthMock {
   getSession: ReturnType<typeof vi.fn>
+  setSession: ReturnType<typeof vi.fn>
   signUp: ReturnType<typeof vi.fn>
   signInWithPassword: ReturnType<typeof vi.fn>
   signOut: ReturnType<typeof vi.fn>
@@ -56,6 +57,7 @@ export function createSupabaseMock(defaults?: {
   const mock: SupabaseMock = {
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session } }),
+      setSession: vi.fn().mockResolvedValue({ data: { user: session?.user ?? null }, error: null }),
       signUp: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       signInWithPassword: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
       signOut: vi.fn().mockResolvedValue({ error: null }),

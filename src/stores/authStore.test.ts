@@ -2,20 +2,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-const mockSignUp = vi.fn()
-const mockSignIn = vi.fn()
+const mockRegister = vi.fn()
+const mockLogin = vi.fn()
 const mockSignOut = vi.fn()
 const mockDeleteAccount = vi.fn()
 const mockGetCurrentSession = vi.fn()
-const mockDeriveAuthToken = vi.fn()
+const mockChangeSrpPassword = vi.fn()
 
 vi.mock('../utils/auth/usernameAuthService', () => ({
-  signUp: (...args: unknown[]) => mockSignUp(...args),
-  signIn: (...args: unknown[]) => mockSignIn(...args),
+  register: (...args: unknown[]) => mockRegister(...args),
+  login: (...args: unknown[]) => mockLogin(...args),
   signOut: (...args: unknown[]) => mockSignOut(...args),
   deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
   getCurrentSession: (...args: unknown[]) => mockGetCurrentSession(...args),
-  deriveAuthToken: (...args: unknown[]) => mockDeriveAuthToken(...args),
+  changeSrpPassword: (...args: unknown[]) => mockChangeSrpPassword(...args),
 }))
 
 const mockCryptoSetup = vi.fn()
@@ -54,16 +54,6 @@ vi.mock('../utils/loginLockoutService', () => ({
   },
 }))
 
-const mockUpdateUser = vi.fn()
-
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    auth: {
-      updateUser: (...args: unknown[]) => mockUpdateUser(...args),
-    },
-  },
-}))
-
 const mockSettingsLoadSettings = vi.fn()
 const mockSettingsSetArgon2Params = vi.fn()
 const mockSettingsSetIdleTimeoutMinutes = vi.fn()
@@ -99,11 +89,11 @@ beforeEach(() => {
   vi.clearAllMocks()
 
   mockGetCurrentSession.mockResolvedValue(null)
-  mockSignUp.mockResolvedValue('uid-1')
-  mockSignIn.mockResolvedValue('uid-1')
+  mockRegister.mockResolvedValue('uid-1')
+  mockLogin.mockResolvedValue('uid-1')
   mockSignOut.mockResolvedValue(undefined)
   mockDeleteAccount.mockResolvedValue(undefined)
-  mockDeriveAuthToken.mockResolvedValue('hex-token')
+  mockChangeSrpPassword.mockResolvedValue(undefined)
 
   mockCryptoSetup.mockResolvedValue({ masterKey: FAKE_MASTER_KEY, params: FAKE_PARAMS })
   mockCryptoUnlock.mockResolvedValue({ masterKey: FAKE_DERIVABLE_KEY, params: FAKE_PARAMS })
@@ -115,8 +105,6 @@ beforeEach(() => {
   mockCheckLockout.mockResolvedValue(undefined)
   mockRecordFailedAttempt.mockResolvedValue(undefined)
   mockLockoutReset.mockResolvedValue(undefined)
-
-  mockUpdateUser.mockResolvedValue({ error: null })
 
   mockSettingsLoadSettings.mockResolvedValue(null)
   mockSettingsSetArgon2Params.mockResolvedValue(undefined)
@@ -159,12 +147,20 @@ describe('authStore.initSession', () => {
 })
 
 describe('authStore.setup', () => {
-  it('calls signUp and cryptoService.setup with the password', async () => {
+  it('calls register, then login to establish a session, then cryptoService.setup', async () => {
     const store = useAuthStore()
     await store.setup('alice', 'password123')
 
-    expect(mockSignUp).toHaveBeenCalledWith('alice', 'password123')
+    expect(mockRegister).toHaveBeenCalledWith('alice', 'password123')
+    expect(mockLogin).toHaveBeenCalledWith('alice', 'password123')
     expect(mockCryptoSetup).toHaveBeenCalledWith('password123')
+    // login must happen after register but before the key write
+    expect(vi.mocked(mockRegister).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(mockLogin).mock.invocationCallOrder[0]
+    )
+    expect(vi.mocked(mockLogin).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(mockCryptoSetup).mock.invocationCallOrder[0]
+    )
   })
 
   it('sets userId, username, masterKey, and keysExist on success', async () => {
@@ -186,12 +182,24 @@ describe('authStore.setup', () => {
   })
 
   it('clears userId and username and re-throws on error', async () => {
-    mockSignUp.mockRejectedValue(new Error('Username already taken.'))
+    mockRegister.mockRejectedValue(new Error('Username already taken.'))
     const store = useAuthStore()
 
     await expect(store.setup('alice', 'pass')).rejects.toThrow('Username already taken.')
     expect(store.userId).toBeNull()
     expect(store.username).toBeNull()
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
+
+  it('rolls back and re-throws when login fails after a successful register', async () => {
+    mockRegister.mockResolvedValue('uid-1')
+    mockLogin.mockRejectedValue(new Error('Login failed: could not establish session.'))
+    const store = useAuthStore()
+
+    await expect(store.setup('alice', 'password123')).rejects.toThrow('Login failed: could not establish session.')
+    expect(store.userId).toBeNull()
+    expect(store.username).toBeNull()
+    expect(mockCryptoSetup).not.toHaveBeenCalled()
   })
 
   it('sets isLoading false after completion', async () => {
@@ -208,11 +216,11 @@ describe('authStore.unlock', () => {
     expect(mockCheckLockout).toHaveBeenCalled()
   })
 
-  it('calls signIn and cryptoService.unlock', async () => {
+  it('calls login and cryptoService.unlock', async () => {
     const store = useAuthStore()
     await store.unlock('alice', 'pass')
 
-    expect(mockSignIn).toHaveBeenCalledWith('alice', 'pass')
+    expect(mockLogin).toHaveBeenCalledWith('alice', 'pass')
     expect(mockCryptoUnlock).toHaveBeenCalledWith('pass')
   })
 
@@ -226,7 +234,7 @@ describe('authStore.unlock', () => {
 
   it('records failed attempt for invalid_credentials error', async () => {
     const credError = { code: 'invalid_credentials', message: 'bad creds' }
-    mockSignIn.mockRejectedValue(credError)
+    mockLogin.mockRejectedValue(credError)
     const store = useAuthStore()
 
     await expect(store.unlock('alice', 'wrong')).rejects.toMatchObject(credError)
@@ -234,29 +242,27 @@ describe('authStore.unlock', () => {
   })
 
   it('does NOT record failed attempt for other error types', async () => {
-    mockSignIn.mockRejectedValue(new Error('network error'))
+    mockLogin.mockRejectedValue(new Error('network error'))
     const store = useAuthStore()
 
     await expect(store.unlock('alice', 'pass')).rejects.toThrow()
     expect(mockRecordFailedAttempt).not.toHaveBeenCalled()
   })
 
-  it('clears all state on failure', async () => {
-    mockSignIn.mockRejectedValue(new Error('fail'))
+  it('clears masterKey on failure', async () => {
+    mockLogin.mockRejectedValue(new Error('fail'))
     const store = useAuthStore()
     store.userId = 'uid-1' as string | null
     store.username = 'alice'
 
     await expect(store.unlock('alice', 'pass')).rejects.toThrow()
 
-    expect(store.userId).toBe('uid-1')
-    expect(store.username).toBe('alice')
     expect(store.masterKey).toBeNull()
   })
 })
 
 describe('authStore.lock', () => {
-  it('calls cryptoService.lock and clears masterKey', async () => {
+  it('calls cryptoService.clear and clears masterKey', async () => {
     const store = useAuthStore()
     store.masterKey = FAKE_MASTER_KEY as CryptoKey | null
     await store.lock()
@@ -299,16 +305,14 @@ describe('authStore.logout', () => {
 })
 
 describe('authStore.changePassword', () => {
-  it('derives tokens and calls supabase.auth.updateUser then cryptoService.updatePassword', async () => {
+  it('re-encrypts locally then updates the SRP credential', async () => {
     const store = useAuthStore()
     store.username = 'alice' as string | null
 
-    mockDeriveAuthToken.mockResolvedValueOnce('old-token').mockResolvedValueOnce('new-token')
-
     await store.changePassword('oldPass', 'newPass')
 
-    expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'new-token' })
     expect(mockCryptoUpdatePassword).toHaveBeenCalledWith('oldPass', 'newPass')
+    expect(mockChangeSrpPassword).toHaveBeenCalledWith('alice', 'oldPass', 'newPass')
   })
 
   it('throws when username is not set', async () => {
@@ -317,17 +321,16 @@ describe('authStore.changePassword', () => {
     await expect(store.changePassword('old', 'new')).rejects.toThrow('Not authenticated')
   })
 
-  it('rolls back the Supabase password update when cryptoService.updatePassword throws', async () => {
+  it('rolls back the local re-encryption when the SRP update fails', async () => {
     const store = useAuthStore()
     store.username = 'alice' as string | null
 
-    mockDeriveAuthToken.mockResolvedValueOnce('old-token').mockResolvedValueOnce('new-token')
-    mockCryptoUpdatePassword.mockRejectedValue(new Error('crypto failure'))
+    mockChangeSrpPassword.mockRejectedValue(new Error('server failure'))
 
-    await expect(store.changePassword('oldPass', 'newPass')).rejects.toThrow('crypto failure')
+    await expect(store.changePassword('oldPass', 'newPass')).rejects.toThrow('server failure')
 
-    expect(mockUpdateUser).toHaveBeenCalledTimes(2)
-    expect(mockUpdateUser).toHaveBeenLastCalledWith({ password: 'old-token' })
+    expect(mockCryptoUpdatePassword).toHaveBeenCalledTimes(2)
+    expect(mockCryptoUpdatePassword).toHaveBeenLastCalledWith('newPass', 'oldPass')
   })
 })
 

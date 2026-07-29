@@ -9,19 +9,44 @@ vi.mock('../../lib/supabase', () => ({
   },
 }))
 
+vi.mock('secure-remote-password/client', () => ({
+  generateSalt: () => 'SALT',
+  derivePrivateKey: (salt: string, username: string, password: string) => `PK(${salt}|${username}|${password})`,
+  deriveVerifier: (privateKey: string) => `V(${privateKey})`,
+  generateEphemeral: () => ({ secret: 'A_SECRET', public: 'A_PUBLIC' }),
+  deriveSession: vi.fn(() => ({ key: 'K', proof: 'M1' })),
+  verifySession: vi.fn(() => undefined),
+}))
+
+import * as srpClient from 'secure-remote-password/client'
 import {
   validateUsername,
-  deriveAuthToken,
-  signUp,
-  signIn,
+  register,
+  login,
+  changeSrpPassword,
   signOut,
   deleteAccount,
   getCurrentSession,
   isUsernameAvailable,
 } from './usernameAuthService'
 
+function jsonResponse(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+  } as unknown as Response
+}
+
+const fetchMock = vi.fn()
+
 beforeEach(() => {
   supabaseMock = createSupabaseMock()
+  vi.clearAllMocks()
+  vi.mocked(srpClient.deriveSession).mockReturnValue({ key: 'K', proof: 'M1' } as srpClient.Session)
+  vi.mocked(srpClient.verifySession).mockReturnValue(undefined)
+  fetchMock.mockReset()
+  vi.stubGlobal('fetch', fetchMock)
 })
 
 describe('validateUsername', () => {
@@ -49,131 +74,145 @@ describe('validateUsername', () => {
   })
 })
 
-describe('deriveAuthToken', () => {
-  it('is deterministic for the same inputs', async () => {
-    const t1 = await deriveAuthToken('alice', 'password123')
-    const t2 = await deriveAuthToken('alice', 'password123')
-    expect(t1).toBe(t2)
-  })
+describe('register', () => {
+  it('sends the locally derived salt and verifier to srp-register', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { userId: 'uid-1' }))
 
-  it('produces different tokens for different passwords', async () => {
-    const t1 = await deriveAuthToken('alice', 'password123')
-    const t2 = await deriveAuthToken('alice', 'different')
-    expect(t1).not.toBe(t2)
-  })
+    await register('Alice', 'password123')
 
-  it('lowercases the username before hashing', async () => {
-    const lower = await deriveAuthToken('alice', 'pass')
-    const upper = await deriveAuthToken('ALICE', 'pass')
-    expect(lower).toBe(upper)
-  })
-
-  it('returns a 64-char hex string (Argon2id, 32-byte hash)', async () => {
-    const token = await deriveAuthToken('alice', 'pass')
-    expect(token).toMatch(/^[0-9a-f]{64}$/)
-  })
-})
-
-describe('signUp', () => {
-  it('calls supabase.auth.signUp with a synthetic email', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
-    supabaseMock._chain.insert.mockResolvedValue({ error: null })
-
-    await signUp('Alice', 'password123')
-
-    expect(supabaseMock.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({ email: 'alice@ciphernote.local' }))
-  })
-
-  it('uses the derived auth token as the Supabase password', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
-    supabaseMock._chain.insert.mockResolvedValue({ error: null })
-
-    const expectedToken = await deriveAuthToken('alice', 'password123')
-    await signUp('Alice', 'password123')
-
-    expect(supabaseMock.auth.signUp).toHaveBeenCalledWith(expect.objectContaining({ password: expectedToken }))
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toEqual(expect.stringContaining('/functions/v1/srp-register'))
+    const sent = JSON.parse((init as RequestInit).body as string)
+    expect(sent).toMatchObject({ username: 'alice', salt: 'SALT' })
+    expect(sent.verifier).toBe('V(PK(SALT|alice|password123))')
   })
 
   it('returns the user id on success', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: { id: 'uid-42' } }, error: null })
-    supabaseMock._chain.insert.mockResolvedValue({ error: null })
-
-    const id = await signUp('alice', 'password123')
-    expect(id).toBe('uid-42')
+    fetchMock.mockResolvedValue(jsonResponse(200, { userId: 'uid-42' }))
+    expect(await register('alice', 'password123')).toBe('uid-42')
   })
 
-  it('inserts a profile row with the lowercased username', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
-    supabaseMock._chain.insert.mockResolvedValue({ error: null })
-
-    await signUp('Alice', 'password123')
-
-    expect(supabaseMock.from).toHaveBeenCalledWith('profiles')
-    expect(supabaseMock._chain.insert).toHaveBeenCalledWith(expect.objectContaining({ username: 'alice' }))
+  it('throws a user-friendly error when the server rejects registration', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(409, { error: 'Username already taken.' }))
+    await expect(register('alice', 'password123')).rejects.toThrow('Username already taken.')
   })
 
-  it('throws a user-friendly error when username is already taken', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'User already registered' },
-    })
-
-    await expect(signUp('alice', 'password123')).rejects.toThrow('Username already taken.')
-  })
-
-  it('throws when profile insert fails', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
-    supabaseMock._chain.insert.mockResolvedValue({ error: { message: 'unique violation' } })
-
-    await expect(signUp('alice', 'password123')).rejects.toThrow('Failed to create profile')
-  })
-
-  it('throws when signUp returns no user', async () => {
-    supabaseMock.auth.signUp.mockResolvedValue({ data: { user: null }, error: null })
-
-    await expect(signUp('alice', 'password123')).rejects.toThrow('Sign up failed')
+  it('throws when the server returns no user id', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}))
+    await expect(register('alice', 'password123')).rejects.toThrow('no user id')
   })
 })
 
-describe('signIn', () => {
-  it('returns the user id on success', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({ data: { user: { id: 'uid-99' } }, error: null })
+describe('login', () => {
+  function mockInit(status: number, body: unknown) {
+    fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
+  }
+  function mockVerify(status: number, body: unknown) {
+    fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
+  }
 
-    const id = await signIn('alice', 'password123')
-    expect(id).toBe('uid-99')
-  })
+  it('completes the handshake and establishes a session', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
+    supabaseMock.auth.setSession.mockResolvedValue({ data: { user: { id: 'uid-9' } }, error: null })
 
-  it('uses the derived auth token', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({ data: { user: { id: 'uid-1' } }, error: null })
+    const id = await login('Alice', 'password123')
 
-    const expectedToken = await deriveAuthToken('alice', 'password123')
-    await signIn('Alice', 'password123')
-
-    expect(supabaseMock.auth.signInWithPassword).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'alice@ciphernote.local', password: expectedToken })
-    )
-  })
-
-  it('re-throws the original error when code is invalid_credentials', async () => {
-    const originalError = { message: 'Invalid login credentials', code: 'invalid_credentials' }
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({ data: { user: null }, error: originalError })
-
-    await expect(signIn('alice', 'wrong')).rejects.toMatchObject(originalError)
-  })
-
-  it('wraps other errors in a generic message', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({
-      data: { user: null },
-      error: { message: 'some server error', code: 'server_error' },
+    expect(id).toBe('uid-9')
+    expect(supabaseMock.auth.setSession).toHaveBeenCalledWith({
+      access_token: 'access',
+      refresh_token: 'refresh',
     })
-
-    await expect(signIn('alice', 'pass')).rejects.toThrow('Sign in failed')
+    expect(srpClient.verifySession).toHaveBeenCalled()
   })
 
-  it('throws when signIn returns no user', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({ data: { user: null }, error: null })
+  it('sends A and M1 to srp-login-verify', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
+    supabaseMock.auth.setSession.mockResolvedValue({ data: { user: { id: 'uid-9' } }, error: null })
 
-    await expect(signIn('alice', 'pass')).rejects.toThrow('Sign in failed')
+    await login('alice', 'password123')
+
+    const verifyCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('srp-login-verify'))
+    expect(verifyCall).toBeDefined()
+    const sent = JSON.parse((verifyCall![1] as RequestInit).body as string)
+    expect(sent).toEqual({ handshakeId: 'sess-1', A: 'A_PUBLIC', M1: 'M1' })
+  })
+
+  it('throws invalid_credentials when the account is unknown (init 404)', async () => {
+    mockInit(404, { error: 'Invalid credentials.' })
+    await expect(login('alice', 'password')).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('throws invalid_credentials when deriving the session fails', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    vi.mocked(srpClient.deriveSession).mockImplementation(() => {
+      throw new Error('bad B')
+    })
+    await expect(login('alice', 'password')).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('throws invalid_credentials when the proof is rejected (verify 401)', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockVerify(401, { error: 'Invalid credentials.' })
+    await expect(login('alice', 'wrong')).rejects.toMatchObject({ code: 'invalid_credentials' })
+  })
+
+  it('throws when the server proof M2 cannot be verified', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockVerify(200, { M2: 'bad', access_token: 'access', refresh_token: 'refresh' })
+    vi.mocked(srpClient.verifySession).mockImplementation(() => {
+      throw new Error('mismatch')
+    })
+    await expect(login('alice', 'password')).rejects.toThrow('Server authentication failed.')
+  })
+
+  it('throws when the session cannot be established', async () => {
+    mockInit(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' })
+    mockVerify(200, { M2: 'M2', access_token: 'access', refresh_token: 'refresh' })
+    supabaseMock.auth.setSession.mockResolvedValue({ data: { user: null }, error: { message: 'nope' } })
+    await expect(login('alice', 'password')).rejects.toThrow('could not establish session')
+  })
+})
+
+describe('changeSrpPassword', () => {
+  beforeEach(() => {
+    supabaseMock.auth.getSession.mockResolvedValue({
+      data: { session: { user: { id: 'uid-1' }, access_token: 'jwt-token' } },
+    })
+  })
+
+  it('proves the old password then sends new credentials with the session token', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+      .mockResolvedValueOnce(jsonResponse(200, { success: true }))
+
+    await changeSrpPassword('Alice', 'oldPass', 'newPass')
+
+    const changeCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('srp-change-password'))
+    expect(changeCall).toBeDefined()
+    const headers = (changeCall![1] as RequestInit).headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer jwt-token')
+    const sent = JSON.parse((changeCall![1] as RequestInit).body as string)
+    expect(sent).toMatchObject({ handshakeId: 'sess-1', A: 'A_PUBLIC', M1: 'M1', salt: 'SALT' })
+    expect(sent.verifier).toBe('V(PK(SALT|alice|newPass))')
+  })
+
+  it('throws invalid_credentials when the old password proof fails (401)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+      .mockResolvedValueOnce(jsonResponse(401, { error: 'Invalid credentials.' }))
+
+    await expect(changeSrpPassword('alice', 'wrong', 'newPass')).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('throws when there is no active session', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { handshakeId: 'sess-1', salt: 'SALT', B: 'B_PUBLIC' }))
+    supabaseMock.auth.getSession.mockResolvedValue({ data: { session: null } })
+
+    await expect(changeSrpPassword('alice', 'old', 'new')).rejects.toThrow('no active session')
   })
 })
 
