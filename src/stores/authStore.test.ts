@@ -147,12 +147,20 @@ describe('authStore.initSession', () => {
 })
 
 describe('authStore.setup', () => {
-  it('calls register and cryptoService.setup with the password', async () => {
+  it('calls register, then login to establish a session, then cryptoService.setup', async () => {
     const store = useAuthStore()
     await store.setup('alice', 'password123')
 
     expect(mockRegister).toHaveBeenCalledWith('alice', 'password123')
+    expect(mockLogin).toHaveBeenCalledWith('alice', 'password123')
     expect(mockCryptoSetup).toHaveBeenCalledWith('password123')
+    // login must happen after register but before the key write
+    expect(vi.mocked(mockRegister).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(mockLogin).mock.invocationCallOrder[0]
+    )
+    expect(vi.mocked(mockLogin).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(mockCryptoSetup).mock.invocationCallOrder[0]
+    )
   })
 
   it('sets userId, username, masterKey, and keysExist on success', async () => {
@@ -180,6 +188,18 @@ describe('authStore.setup', () => {
     await expect(store.setup('alice', 'pass')).rejects.toThrow('Username already taken.')
     expect(store.userId).toBeNull()
     expect(store.username).toBeNull()
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
+
+  it('rolls back and re-throws when login fails after a successful register', async () => {
+    mockRegister.mockResolvedValue('uid-1')
+    mockLogin.mockRejectedValue(new Error('Login failed: could not establish session.'))
+    const store = useAuthStore()
+
+    await expect(store.setup('alice', 'password123')).rejects.toThrow('Login failed: could not establish session.')
+    expect(store.userId).toBeNull()
+    expect(store.username).toBeNull()
+    expect(mockCryptoSetup).not.toHaveBeenCalled()
   })
 
   it('sets isLoading false after completion', async () => {

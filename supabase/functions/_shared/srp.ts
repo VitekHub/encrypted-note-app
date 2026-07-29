@@ -1,4 +1,4 @@
-import * as srpServer from 'npm:secure-remote-password@0.3.1/server'
+import * as srpServer from 'npm:secure-remote-password@0.3.1/server.js'
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { serverError, unauthorized } from './http.ts'
 

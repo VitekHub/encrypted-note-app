@@ -47,7 +47,10 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading.value = true
     error.value = null
     try {
-      const uid = await register(usernameInput, password)
+      await register(usernameInput, password)
+      // srp-register creates the account but never authenticates the client;
+      // login now to establish a session before the encrypted-key write.
+      const uid = await login(usernameInput, password)
       userId.value = uid
       username.value = usernameInput.toLowerCase()
 

@@ -1,5 +1,5 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
-import * as srpServer from 'npm:secure-remote-password@0.3.1/server'
+import * as srpServer from 'npm:secure-remote-password@0.3.1/server.js'
 import { type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { badRequest, clientIp, guardPost, isRateLimited, json, serverError, tooManyRequests } from '../_shared/http.ts'
 import { readJsonBody, str } from '../_shared/body.ts'
