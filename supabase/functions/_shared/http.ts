@@ -62,10 +62,19 @@ export function clientIp(req: Request): string {
  * Best-effort per-IP throttle. In-memory, so it only spans a warm instance; it
  * is a first barrier against scripted probing, not a hard guarantee.
  */
+/** Caps tracked IPs so the map can't grow without bound. */
+const MAX_BUCKETS = 10_000
+
 export function isRateLimited(key: string, max = 15, windowMs = RATE_LIMIT_WINDOW_MS): boolean {
   const now = Date.now()
   const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs)
   hits.push(now)
   buckets.set(key, hits)
+  // Evict fully-stale keys once the map gets large.
+  if (buckets.size > MAX_BUCKETS) {
+    for (const [k, ts] of buckets) {
+      if (ts.every((t) => now - t >= windowMs)) buckets.delete(k)
+    }
+  }
   return hits.length > max
 }

@@ -1,4 +1,4 @@
-import * as srpClient from 'secure-remote-password/client'
+import { deriveSession, type Session } from 'secure-remote-password/client'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -86,9 +86,9 @@ export function deriveClientSession(
   salt: string,
   username: string,
   privateKey: string
-): srpClient.Session {
+): Session {
   try {
-    return srpClient.deriveSession(ephemeralSecret, serverPublicEphemeral, salt, username, privateKey)
+    return deriveSession(ephemeralSecret, serverPublicEphemeral, salt, username, privateKey)
   } catch {
     throw invalidCredentialsError()
   }

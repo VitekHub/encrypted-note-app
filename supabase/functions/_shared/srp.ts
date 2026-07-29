@@ -51,20 +51,20 @@ export async function loadCredential(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ salt: string; verifier: string; username: string } | { response: Response }> {
-  const { data: cred, error: credError } = await supabase
-    .from('srp_credentials')
-    .select('salt, verifier')
-    .eq('user_id', userId)
-    .maybeSingle()
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', userId)
-    .maybeSingle()
-  if (credError || profileError || !cred || !profile) {
+  // Both lookups are keyed by userId, so run them concurrently.
+  const [credRes, profileRes] = await Promise.all([
+    supabase.from('srp_credentials').select('salt, verifier').eq('user_id', userId).maybeSingle(),
+    supabase.from('profiles').select('username').eq('id', userId).maybeSingle(),
+  ])
+  if (credRes.error || profileRes.error) {
     return { response: serverError() }
   }
-  return { salt: cred.salt, verifier: cred.verifier, username: profile.username }
+  // Missing credential (e.g. aborted signup) — surface as invalid credentials,
+  // not a server error, so a half-provisioned account gets a clean 401.
+  if (!credRes.data || !profileRes.data) {
+    return { response: unauthorized() }
+  }
+  return { salt: credRes.data.salt, verifier: credRes.data.verifier, username: profileRes.data.username }
 }
 
 /**

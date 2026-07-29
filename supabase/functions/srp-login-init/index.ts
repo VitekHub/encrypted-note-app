@@ -67,15 +67,24 @@ async function resolveAccount(
   return { userId: profile.id, credentials: cred }
 }
 
+/** A uuid that can't reference a profile; used for a dummy credential lookup. */
+const NIL_USER_ID = '00000000-0000-0000-0000-000000000000'
+
 /**
- * Builds a response that is indistinguishable from a real user's, using a
- * deterministic decoy salt + a fresh ephemeral B. The subsequent verify step
- * then fails exactly like a wrong password would, so probes cannot tell real
- * users from nonexistent ones.
+ * Builds a response indistinguishable from a real user's: deterministic decoy
+ * salt + fresh ephemeral B, so the verify step fails like a wrong password and
+ * probes can't tell real users from nonexistent ones.
+ *
+ * Timing equalization: the dummy credential SELECT matches the real path's
+ * second round trip, and the two HMACs stand in for its session INSERT. The
+ * remaining gap is small; fully closing it needs a decoy/honeypot account.
  */
-async function decoyResponse(username: string): Promise<Response> {
-  const decoySalt = await hmacHex(serviceKey, `srp-decoy-salt:${username}`)
-  const decoyVerifier = await hmacHex(serviceKey, `srp-decoy-verifier:${username}`)
+async function decoyResponse(supabase: SupabaseClient, username: string): Promise<Response> {
+  const [decoySalt, decoyVerifier] = await Promise.all([
+    hmacHex(serviceKey, `srp-decoy-salt:${username}`),
+    hmacHex(serviceKey, `srp-decoy-verifier:${username}`),
+    supabase.from('srp_credentials').select('salt, verifier').eq('user_id', NIL_USER_ID).maybeSingle(),
+  ])
   const decoyEphemeral = srpServer.generateEphemeral(decoyVerifier)
   return json({ sessionId: crypto.randomUUID(), salt: decoySalt, B: decoyEphemeral.public })
 }
@@ -111,12 +120,23 @@ async function handleLoginInit(req: Request): Promise<Response> {
 
   const supabase = serviceClient()
 
-  await supabase.from('srp_sessions').delete().lt('expires_at', new Date().toISOString())
+  // Best-effort purge of expired sessions, overlapped with the account lookup
+  // so it never blocks the response. Errors are swallowed (cleanup must not
+  // fail the login).
+  const cleanup = supabase
+    .from('srp_sessions')
+    .delete()
+    .lt('expires_at', new Date().toISOString())
+    .then(
+      () => {},
+      () => {}
+    )
 
   const account = await resolveAccount(supabase, username)
+  await cleanup
   if (account && 'response' in account) return account.response
   if (!account) {
-    return decoyResponse(username)
+    return decoyResponse(supabase, username)
   }
 
   const { userId, credentials } = account

@@ -1,4 +1,4 @@
-import * as srpClient from 'secure-remote-password/client'
+import { derivePrivateKey, deriveVerifier, generateEphemeral, generateSalt, verifySession } from 'secure-remote-password/client'
 import { supabase } from '../../lib/supabase'
 import { SRP_GROUP } from './srp/srpConfig'
 import { callEdgeFunction, deriveClientSession, srpLoginInit } from './srp/srpEdgeClient'
@@ -18,9 +18,9 @@ import { callEdgeFunction, deriveClientSession, srpLoginInit } from './srp/srpEd
  */
 export async function register(username: string, password: string): Promise<string> {
   const normalizedUsername = username.toLowerCase()
-  const salt = srpClient.generateSalt()
-  const privateKey = srpClient.derivePrivateKey(salt, normalizedUsername, password)
-  const verifier = srpClient.deriveVerifier(privateKey)
+  const salt = generateSalt()
+  const privateKey = derivePrivateKey(salt, normalizedUsername, password)
+  const verifier = deriveVerifier(privateKey)
 
   const body = await callEdgeFunction<{ userId?: string }>(
     'srp-register',
@@ -56,8 +56,8 @@ export async function login(username: string, password: string): Promise<string>
     invalidCredentialStatuses: [401, 404],
   })
 
-  const clientEphemeral = srpClient.generateEphemeral()
-  const privateKey = srpClient.derivePrivateKey(init.salt, normalizedUsername, password)
+  const clientEphemeral = generateEphemeral()
+  const privateKey = derivePrivateKey(init.salt, normalizedUsername, password)
   const clientSession = deriveClientSession(clientEphemeral.secret, init.B, init.salt, normalizedUsername, privateKey)
 
   const verifyBody = await callEdgeFunction<{
@@ -74,7 +74,7 @@ export async function login(username: string, password: string): Promise<string>
   }
 
   try {
-    srpClient.verifySession(clientEphemeral.public, clientSession, verifyBody.M2)
+    verifySession(clientEphemeral.public, clientSession, verifyBody.M2)
   } catch {
     throw new Error('Server authentication failed.')
   }
@@ -111,8 +111,8 @@ export async function changeSrpPassword(username: string, oldPassword: string, n
 
   const init = await srpLoginInit(normalizedUsername, { failureLabel: 'Password change' })
 
-  const clientEphemeral = srpClient.generateEphemeral()
-  const oldPrivateKey = srpClient.derivePrivateKey(init.salt, normalizedUsername, oldPassword)
+  const clientEphemeral = generateEphemeral()
+  const oldPrivateKey = derivePrivateKey(init.salt, normalizedUsername, oldPassword)
   const clientSession = deriveClientSession(
     clientEphemeral.secret,
     init.B,
@@ -121,9 +121,9 @@ export async function changeSrpPassword(username: string, oldPassword: string, n
     oldPrivateKey
   )
 
-  const newSalt = srpClient.generateSalt()
-  const newPrivateKey = srpClient.derivePrivateKey(newSalt, normalizedUsername, newPassword)
-  const newVerifier = srpClient.deriveVerifier(newPrivateKey)
+  const newSalt = generateSalt()
+  const newPrivateKey = derivePrivateKey(newSalt, normalizedUsername, newPassword)
+  const newVerifier = deriveVerifier(newPrivateKey)
 
   const {
     data: { session },
