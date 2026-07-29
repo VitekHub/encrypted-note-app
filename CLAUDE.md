@@ -77,6 +77,7 @@ All stores are composition-API style (`defineStore` with setup function):
 ### Routing & Auth Guards
 
 `router/index.ts` has a `beforeEach` guard:
+
 - Authenticated users on `/login` or `/unlock` are redirected to `/`.
 - Unauthenticated users on protected routes (`/`, `/settings`) are redirected to `/login` or `/unlock` depending on whether a Supabase session exists.
 

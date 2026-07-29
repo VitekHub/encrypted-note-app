@@ -26,17 +26,17 @@ export interface LoadedSession {
 export async function consumeSession(
   supabase: SupabaseClient,
   sessionId: string
-): Promise<{ session: LoadedSession } | { response: Response }> {
+): Promise<{ session: LoadedSession } | { errorResponse: Response }> {
   const { data: session, error } = await supabase
     .from('srp_sessions')
     .select('id, user_id, server_b, expires_at')
     .eq('id', sessionId)
     .maybeSingle()
   if (error) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   if (!session) {
-    return { response: unauthorized() }
+    return { errorResponse: unauthorized() }
   }
   await supabase.from('srp_sessions').delete().eq('id', session.id)
   return { session: session as LoadedSession }
@@ -50,19 +50,19 @@ export function isSessionExpired(session: LoadedSession): boolean {
 export async function loadCredential(
   supabase: SupabaseClient,
   userId: string
-): Promise<{ salt: string; verifier: string; username: string } | { response: Response }> {
+): Promise<{ salt: string; verifier: string; username: string } | { errorResponse: Response }> {
   // Both lookups are keyed by userId, so run them concurrently.
   const [credRes, profileRes] = await Promise.all([
     supabase.from('srp_credentials').select('salt, verifier').eq('user_id', userId).maybeSingle(),
     supabase.from('profiles').select('username').eq('id', userId).maybeSingle(),
   ])
   if (credRes.error || profileRes.error) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   // Missing credential (e.g. aborted signup) — surface as invalid credentials,
   // not a server error, so a half-provisioned account gets a clean 401.
   if (!credRes.data || !profileRes.data) {
-    return { response: unauthorized() }
+    return { errorResponse: unauthorized() }
   }
   return { salt: credRes.data.salt, verifier: credRes.data.verifier, username: profileRes.data.username }
 }

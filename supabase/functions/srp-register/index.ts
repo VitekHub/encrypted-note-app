@@ -27,7 +27,7 @@ function randomPassword(): string {
 }
 
 /** Parses and validates the four required SRP register fields. */
-async function parseRegisterRequest(req: Request): Promise<{ response: Response } | RegisterFields> {
+async function parseRegisterRequest(req: Request): Promise<{ errorResponse: Response } | RegisterFields> {
   const body = await readJsonBody(req)
   const username = str(body, 'username').toLowerCase()
   const salt = str(body, 'salt')
@@ -35,13 +35,13 @@ async function parseRegisterRequest(req: Request): Promise<{ response: Response 
   const group = str(body, 'group')
 
   if (!isValidUsername(username)) {
-    return { response: badRequest(ERR.INVALID_USERNAME) }
+    return { errorResponse: badRequest(ERR.INVALID_USERNAME) }
   }
   if (!salt || !verifier) {
-    return { response: badRequest(ERR.MISSING_CREDENTIALS) }
+    return { errorResponse: badRequest(ERR.MISSING_CREDENTIALS) }
   }
   if (group !== SRP_GROUP) {
-    return { response: badRequest(ERR.UNSUPPORTED_GROUP) }
+    return { errorResponse: badRequest(ERR.UNSUPPORTED_GROUP) }
   }
   return { username, salt, verifier, group }
 }
@@ -50,10 +50,10 @@ async function parseRegisterRequest(req: Request): Promise<{ response: Response 
 async function usernameTaken(
   supabase: SupabaseClient,
   username: string
-): Promise<{ response: Response } | Conflict | { taken: false }> {
+): Promise<{ errorResponse: Response } | Conflict | { taken: false }> {
   const { data: existing, error } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle()
   if (error) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   return existing ? { conflict: true } : { taken: false }
 }
@@ -62,7 +62,7 @@ async function usernameTaken(
 async function createAuthUser(
   supabase: SupabaseClient,
   username: string
-): Promise<{ response: Response } | Conflict | { userId: string }> {
+): Promise<{ errorResponse: Response } | Conflict | { userId: string }> {
   const { data: created, error } = await supabase.auth.admin.createUser({
     email: `${username}@${USERNAME_DOMAIN}`,
     password: randomPassword(),
@@ -73,7 +73,7 @@ async function createAuthUser(
     if (msg.toLowerCase().includes('already')) {
       return { conflict: true }
     }
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   return { userId: created.user.id }
 }
@@ -86,12 +86,12 @@ async function insertProfile(
   supabase: SupabaseClient,
   userId: string,
   username: string
-): Promise<{ response: Response } | Conflict | { ok: true }> {
+): Promise<{ errorResponse: Response } | Conflict | { ok: true }> {
   const { error } = await supabase.from('profiles').insert({ id: userId, username })
   if (error) {
     await supabase.auth.admin.deleteUser(userId)
     const taken = error.message.toLowerCase().includes('duplicate')
-    return taken ? { conflict: true } : { response: serverError() }
+    return taken ? { conflict: true } : { errorResponse: serverError() }
   }
   return { ok: true }
 }
@@ -104,38 +104,38 @@ async function insertCredential(
   supabase: SupabaseClient,
   userId: string,
   fields: RegisterFields
-): Promise<{ response: Response } | { ok: true }> {
+): Promise<{ errorResponse: Response } | { ok: true }> {
   const { error } = await supabase
     .from('srp_credentials')
     .insert({ user_id: userId, salt: fields.salt, verifier: fields.verifier, srp_group: fields.group })
   if (error) {
     await supabase.from('profiles').delete().eq('id', userId)
     await supabase.auth.admin.deleteUser(userId)
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   return { ok: true }
 }
 
 async function handleRegister(req: Request): Promise<Response> {
   const parsed = await parseRegisterRequest(req)
-  if ('response' in parsed) return parsed.response
+  if ('errorResponse' in parsed) return parsed.errorResponse
 
   const supabase = serviceClient()
 
   const taken = await usernameTaken(supabase, parsed.username)
-  if ('response' in taken) return taken.response
+  if ('errorResponse' in taken) return taken.errorResponse
   if ('conflict' in taken) return conflict()
 
   const authUser = await createAuthUser(supabase, parsed.username)
-  if ('response' in authUser) return authUser.response
+  if ('errorResponse' in authUser) return authUser.errorResponse
   if ('conflict' in authUser) return conflict()
 
   const profile = await insertProfile(supabase, authUser.userId, parsed.username)
-  if ('response' in profile) return profile.response
+  if ('errorResponse' in profile) return profile.errorResponse
   if ('conflict' in profile) return conflict()
 
   const cred = await insertCredential(supabase, authUser.userId, parsed)
-  if ('response' in cred) return cred.response
+  if ('errorResponse' in cred) return cred.errorResponse
 
   return json({ userId: authUser.userId })
 }

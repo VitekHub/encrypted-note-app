@@ -22,14 +22,14 @@ type Credentials = { salt: string; verifier: string }
 async function loadCredentials(
   supabase: SupabaseClient,
   userId: string
-): Promise<{ response: Response } | Credentials | null> {
+): Promise<{ errorResponse: Response } | Credentials | null> {
   const { data: cred, error } = await supabase
     .from('srp_credentials')
     .select('salt, verifier')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   if (!cred) {
     return null
@@ -45,20 +45,20 @@ async function loadCredentials(
 async function resolveAccount(
   supabase: SupabaseClient,
   username: string
-): Promise<{ response: Response } | { userId: string; credentials: Credentials } | null> {
+): Promise<{ errorResponse: Response } | { userId: string; credentials: Credentials } | null> {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id')
     .eq('username', username)
     .maybeSingle()
   if (profileError) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   if (!profile) {
     return null
   }
   const cred = await loadCredentials(supabase, profile.id)
-  if (cred && 'response' in cred) {
+  if (cred && 'errorResponse' in cred) {
     return cred
   }
   if (!cred) {
@@ -94,7 +94,7 @@ async function createSession(
   supabase: SupabaseClient,
   userId: string,
   ephemeral: { secret: string; public: string }
-): Promise<{ response: Response } | { sessionId: string }> {
+): Promise<{ errorResponse: Response } | { sessionId: string }> {
   const { data: session, error } = await supabase
     .from('srp_sessions')
     .insert({
@@ -106,7 +106,7 @@ async function createSession(
     .select('id')
     .single()
   if (error || !session) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   return { sessionId: session.id }
 }
@@ -134,7 +134,7 @@ async function handleLoginInit(req: Request): Promise<Response> {
 
   const account = await resolveAccount(supabase, username)
   await cleanup
-  if (account && 'response' in account) return account.response
+  if (account && 'errorResponse' in account) return account.errorResponse
   if (!account) {
     return decoyResponse(supabase, username)
   }
@@ -143,7 +143,7 @@ async function handleLoginInit(req: Request): Promise<Response> {
   const ephemeral = srpServer.generateEphemeral(credentials.verifier)
 
   const session = await createSession(supabase, userId, ephemeral)
-  if ('response' in session) return session.response
+  if ('errorResponse' in session) return session.errorResponse
 
   return json({ sessionId: session.sessionId, salt: credentials.salt, B: ephemeral.public })
 }

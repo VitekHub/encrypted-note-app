@@ -26,7 +26,7 @@ type ChangePasswordFields = {
 }
 
 /** Parses and validates the six required change-password fields. */
-async function parseChangePasswordRequest(req: Request): Promise<{ response: Response } | ChangePasswordFields> {
+async function parseChangePasswordRequest(req: Request): Promise<{ errorResponse: Response } | ChangePasswordFields> {
   const body = await readJsonBody(req)
   const sessionId = str(body, 'sessionId')
   const clientPublic = str(body, 'A')
@@ -36,22 +36,22 @@ async function parseChangePasswordRequest(req: Request): Promise<{ response: Res
   const newGroup = str(body, 'group')
 
   if (!sessionId || !clientPublic || !clientProof || !newSalt || !newVerifier || !newGroup) {
-    return { response: badRequest() }
+    return { errorResponse: badRequest() }
   }
   if (newGroup !== SRP_GROUP) {
-    return { response: badRequest(ERR.UNSUPPORTED_GROUP) }
+    return { errorResponse: badRequest(ERR.UNSUPPORTED_GROUP) }
   }
   return { sessionId, clientPublic, clientProof, newSalt, newVerifier, newGroup }
 }
 
 /** Identifies the caller from their JWT. */
-async function identifyUser(req: Request): Promise<{ response: Response } | { userId: string }> {
+async function identifyUser(req: Request): Promise<{ errorResponse: Response } | { userId: string }> {
   const {
     data: { user },
     error: userError,
   } = await userClient(req).auth.getUser()
   if (userError || !user) {
-    return { response: unauthorized(ERR.NOT_AUTHENTICATED) }
+    return { errorResponse: unauthorized(ERR.NOT_AUTHENTICATED) }
   }
   return { userId: user.id }
 }
@@ -61,7 +61,7 @@ async function updateCredential(
   supabase: SupabaseClient,
   userId: string,
   fields: ChangePasswordFields
-): Promise<{ response: Response } | { ok: true }> {
+): Promise<{ errorResponse: Response } | { ok: true }> {
   const { error } = await supabase
     .from('srp_credentials')
     .update({
@@ -72,22 +72,22 @@ async function updateCredential(
     })
     .eq('user_id', userId)
   if (error) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
   return { ok: true }
 }
 
 async function handleChangePassword(req: Request): Promise<Response> {
   const parsed = await parseChangePasswordRequest(req)
-  if ('response' in parsed) return parsed.response
+  if ('errorResponse' in parsed) return parsed.errorResponse
 
   const caller = await identifyUser(req)
-  if ('response' in caller) return caller.response
+  if ('errorResponse' in caller) return caller.errorResponse
 
   const supabase = serviceClient()
 
   const loaded = await consumeSession(supabase, parsed.sessionId)
-  if ('response' in loaded) return loaded.response
+  if ('errorResponse' in loaded) return loaded.errorResponse
   const { session } = loaded
 
   if (session.user_id !== caller.userId) {
@@ -98,7 +98,7 @@ async function handleChangePassword(req: Request): Promise<Response> {
   }
 
   const cred = await loadCredential(supabase, session.user_id)
-  if ('response' in cred) return cred.response
+  if ('errorResponse' in cred) return cred.errorResponse
 
   const proof = verifyProof(
     session.server_b,
@@ -113,7 +113,7 @@ async function handleChangePassword(req: Request): Promise<Response> {
   }
 
   const updated = await updateCredential(supabase, session.user_id, parsed)
-  if ('response' in updated) return updated.response
+  if ('errorResponse' in updated) return updated.errorResponse
 
   return json({ success: true })
 }

@@ -1,4 +1,10 @@
-import { derivePrivateKey, deriveVerifier, generateEphemeral, generateSalt, verifySession } from 'secure-remote-password/client'
+import {
+  derivePrivateKey,
+  deriveVerifier,
+  generateEphemeral,
+  generateSalt,
+  verifySession,
+} from 'secure-remote-password/client'
 import { supabase } from '../../lib/supabase'
 import { SRP_GROUP } from './srp/srpConfig'
 import { callEdgeFunction, deriveClientSession, srpLoginInit } from './srp/srpEdgeClient'

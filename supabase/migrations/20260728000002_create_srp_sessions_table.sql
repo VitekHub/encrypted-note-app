@@ -20,7 +20,6 @@
   | user_id    | uuid FK     | References profiles.id on delete cascade, not null              |
   | server_b   | text        | Server ephemeral secret `b` (base64/hex), not null              |
   | public_b   | text        | Server ephemeral public `B` sent to the client, not null        |
-  | client_a   | text        | Client ephemeral public `A`, filled on verify (nullable)        |
   | expires_at | timestamptz | Hard expiry, e.g. now() + interval '2 minutes', not null        |
   | created_at | timestamptz | Creation timestamp, defaults to now()                           |
 
@@ -43,7 +42,6 @@ CREATE TABLE IF NOT EXISTS public.srp_sessions (
   user_id    uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   server_b   text NOT NULL,
   public_b   text NOT NULL,
-  client_a   text,
   expires_at timestamptz NOT NULL,
   created_at timestamptz DEFAULT now()
 );

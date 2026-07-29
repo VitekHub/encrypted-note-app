@@ -18,13 +18,13 @@ import { consumeSession, isSessionExpired, loadCredential, USERNAME_DOMAIN, veri
 type VerifyFields = { sessionId: string; clientPublic: string; clientProof: string }
 
 /** Parses and validates the three required SRP verify fields. */
-async function parseVerifyRequest(req: Request): Promise<{ response: Response } | VerifyFields> {
+async function parseVerifyRequest(req: Request): Promise<{ errorResponse: Response } | VerifyFields> {
   const body = await readJsonBody(req)
   const sessionId = str(body, 'sessionId')
   const clientPublic = str(body, 'A')
   const clientProof = str(body, 'M1')
   if (!sessionId || !clientPublic || !clientProof) {
-    return { response: badRequest(ERR.INVALID_CREDENTIALS) }
+    return { errorResponse: badRequest(ERR.INVALID_CREDENTIALS) }
   }
   return { sessionId, clientPublic, clientProof }
 }
@@ -38,7 +38,7 @@ type SessionTokens = { access_token: string; refresh_token: string }
 async function mintSessionTokens(
   supabase: SupabaseClient,
   username: string
-): Promise<{ response: Response } | SessionTokens> {
+): Promise<{ errorResponse: Response } | SessionTokens> {
   const email = `${username}@${USERNAME_DOMAIN}`
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     type: 'magiclink',
@@ -46,7 +46,7 @@ async function mintSessionTokens(
   })
   const tokenHash = linkData?.properties?.hashed_token
   if (linkError || !tokenHash) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
 
   const { data: verified, error: otpError } = await anonClient().auth.verifyOtp({
@@ -54,7 +54,7 @@ async function mintSessionTokens(
     token_hash: tokenHash,
   })
   if (otpError || !verified?.session) {
-    return { response: serverError() }
+    return { errorResponse: serverError() }
   }
 
   return { access_token: verified.session.access_token, refresh_token: verified.session.refresh_token }
@@ -62,13 +62,13 @@ async function mintSessionTokens(
 
 async function handleLoginVerify(req: Request): Promise<Response> {
   const parsed = await parseVerifyRequest(req)
-  if ('response' in parsed) return parsed.response
+  if ('errorResponse' in parsed) return parsed.errorResponse
   const { sessionId, clientPublic, clientProof } = parsed
 
   const supabase = serviceClient()
 
   const loaded = await consumeSession(supabase, sessionId)
-  if ('response' in loaded) return loaded.response
+  if ('errorResponse' in loaded) return loaded.errorResponse
   const { session } = loaded
 
   if (isSessionExpired(session)) {
@@ -76,7 +76,7 @@ async function handleLoginVerify(req: Request): Promise<Response> {
   }
 
   const cred = await loadCredential(supabase, session.user_id)
-  if ('response' in cred) return cred.response
+  if ('errorResponse' in cred) return cred.errorResponse
 
   const proof = verifyProof(session.server_b, clientPublic, cred.salt, cred.username, cred.verifier, clientProof)
   if (!proof) {
@@ -84,7 +84,7 @@ async function handleLoginVerify(req: Request): Promise<Response> {
   }
 
   const tokens = await mintSessionTokens(supabase, cred.username)
-  if ('response' in tokens) return tokens.response
+  if ('errorResponse' in tokens) return tokens.errorResponse
 
   return json({
     M2: proof.proof,
